@@ -167,6 +167,9 @@ The important detail is that `flutter build apk` alone is not enough on a clean 
 If you want the agreed WSL-first plan for a repeatable local debug flow, see
 `doc/android-debug-build-plan-wsl.md`.
 
+If you want the separate one-time WSL toolchain/bootstrap plan, see
+`doc/android-toolchain-bootstrap-plan-wsl.md`.
+
 ### 1. Build Native Android Dependencies With vcpkg
 
 Run this from the repository root:
