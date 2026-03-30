@@ -263,7 +263,7 @@ patch_flutter_if_needed() {
   local version="$2"
 
   [[ -f "$FLUTTER_PATCH_PATH" ]] || return
-  if ! dpkg --compare-versions "$version" ge "3.24.4"; then
+  if [[ "$version" != "3.24.4" ]]; then
     return
   fi
 
