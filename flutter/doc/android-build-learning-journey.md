@@ -276,3 +276,43 @@ Once that is accepted, the structure of the solution becomes much clearer:
 - reuse the repo's existing build helpers
 - keep version pins aligned with CI
 - keep Docker as packaging of a known-good WSL process
+
+## Session Update: 2026-03-30
+
+Current confirmed progress in the WSL bootstrap work:
+
+- Ubuntu has been installed on WSL
+- WSL environment configuration is now in progress
+- the setup was smooth through host and Rust bootstrap, with the first reported issue appearing during `install-flutter`
+- completed `./flutter/setup_android_wsl_toolchain.sh install-host`
+- completed `./flutter/setup_android_wsl_toolchain.sh install-rust`
+- first attempt at `./flutter/setup_android_wsl_toolchain.sh install-flutter` failed with a `tar` archive-path error
+- the bootstrap script was corrected after that failure
+
+What those completed steps mean:
+
+- the required Ubuntu host packages should now be installed
+- Rust `1.75` should now be available through `rustup`
+- `cargo-ndk` `3.1.2` should now be installed
+- `cargo-expand` `1.0.95` should now be installed
+- `flutter_rust_bridge_codegen` `1.80.1` should now be installed
+
+Encounter recorded during `install-flutter`:
+
+- observed error:
+  `tar (child): ... /root/.cache/rustdesk-bootstrap-downloads/flutter_linux_3.24.5-stable.tar.xz: Cannot open: No such file or directory`
+- root cause:
+  `download_with_cache` was used inside command substitution, but `log()` wrote progress text to stdout, so the returned archive path was polluted by the log line
+- fix applied:
+  `log()` now writes to stderr, which keeps command-substitution return values clean
+- impact:
+  this fix should also protect first-download paths in `install-rust`, `install-android-sdk`, and `install-ndk`
+
+Remaining bootstrap steps expected from the current WSL plan:
+
+- rerun `./flutter/setup_android_wsl_toolchain.sh install-flutter`
+- `./flutter/setup_android_wsl_toolchain.sh install-android-sdk`
+- `./flutter/setup_android_wsl_toolchain.sh install-ndk`
+- `./flutter/setup_android_wsl_toolchain.sh install-vcpkg`
+- `./flutter/setup_android_wsl_toolchain.sh env`
+- `./flutter/setup_android_wsl_toolchain.sh check`
