@@ -308,6 +308,17 @@ Encounter recorded during `install-flutter`:
 - impact:
   this fix should also protect first-download paths in `install-rust`, `install-android-sdk`, and `install-ndk`
 
+Second encounter recorded during `install-flutter`:
+
+- observed error:
+  `ERROR: Flutter patch does not apply cleanly to /home/user/sdk/flutter`
+- root cause:
+  the bootstrap script treated the local Flutter patch as mandatory for every version `>= 3.24.4`, but Flutter `3.24.5` can contain an equivalent upstream fix even when the local patch no longer applies cleanly
+- fix applied:
+  the script now checks the extracted Flutter source for the equivalent `dropdown_menu.dart` fix and skips the patch when that fix is already present
+- impact:
+  `install-flutter` should now proceed on Flutter `3.24.5` without failing on a no-longer-applicable patch
+
 Remaining bootstrap steps expected from the current WSL plan:
 
 - rerun `./flutter/setup_android_wsl_toolchain.sh install-flutter`

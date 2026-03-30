@@ -216,6 +216,17 @@ flutter_android_cache_ready() {
   [[ -d "$sdk_dir/bin/cache/artifacts/engine/android-x86-release" ]]
 }
 
+flutter_patch_equivalent_fix_present() {
+  local sdk_dir="$1"
+  local dropdown_menu_path="$sdk_dir/packages/flutter/lib/src/material/dropdown_menu.dart"
+
+  [[ -f "$dropdown_menu_path" ]] || return 1
+
+  grep -Fq 'bool _enableFilter = false;' "$dropdown_menu_path" && \
+  grep -Fq 'if (oldWidget.enableFilter != widget.enableFilter) {' "$dropdown_menu_path" && \
+  grep -Fq 'filteredEntries = widget.dropdownMenuEntries;' "$dropdown_menu_path"
+}
+
 patch_flutter_if_needed() {
   local sdk_dir="$1"
   local version="$2"
@@ -232,6 +243,8 @@ patch_flutter_if_needed() {
   if git apply --check --directory="$sdk_dir" "$FLUTTER_PATCH_PATH" >/dev/null 2>&1; then
     log "Applying Flutter patch for $version"
     git apply --directory="$sdk_dir" "$FLUTTER_PATCH_PATH"
+  elif flutter_patch_equivalent_fix_present "$sdk_dir"; then
+    log "Skipping Flutter patch for $version because the equivalent fix is already present"
   else
     fail "Flutter patch does not apply cleanly to $sdk_dir"
   fi
