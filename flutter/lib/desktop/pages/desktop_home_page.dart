@@ -132,7 +132,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
       value: gFFI.serverModel,
       child: Container(
         width: isIncomingOnly ? 280.0 : 200.0,
-        color: Theme.of(context).colorScheme.background,
+        color: Theme.of(context).colorScheme.surface,
         child: Stack(
           children: [
             Column(
@@ -267,7 +267,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
             radius: 15,
             backgroundColor: hover.value
                 ? Theme.of(context).scaffoldBackgroundColor
-                : Theme.of(context).colorScheme.background,
+                : Theme.of(context).colorScheme.surface,
             child: Icon(
               Icons.more_vert_outlined,
               size: 20,
