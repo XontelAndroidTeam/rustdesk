@@ -170,6 +170,9 @@ If you want the agreed WSL-first plan for a repeatable local debug flow, see
 If you want the separate one-time WSL toolchain/bootstrap plan, see
 `doc/android-toolchain-bootstrap-plan-wsl.md`.
 
+If you want the reasoning and decision trail that led to those plans, see
+`doc/android-build-learning-journey.md`.
+
 ### 1. Build Native Android Dependencies With vcpkg
 
 Run this from the repository root:
