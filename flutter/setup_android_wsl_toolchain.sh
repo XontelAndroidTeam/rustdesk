@@ -45,6 +45,7 @@ RUSTUP_INIT_SCRIPT="${RUSTUP_INIT_SCRIPT:-}"
 
 FLUTTER_PATCH_PATH="${FLUTTER_PATCH_PATH:-$REPO_ROOT/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff}"
 FLUTTER_PRECACHE_ANDROID="${FLUTTER_PRECACHE_ANDROID:-1}"
+VERBOSE="${VERBOSE:-0}"
 
 export FLUTTER_HOME
 export FLUTTER_BRIDGE_HOME
@@ -102,10 +103,13 @@ HOST_PACKAGES=(
 usage() {
   cat <<'EOF'
 Usage:
-  ./flutter/setup_android_wsl_toolchain.sh <command>
+  ./flutter/setup_android_wsl_toolchain.sh [--verbose] <command>
 
 Assumption:
   Ubuntu 24.04 LTS on WSL 2
+
+Options:
+  -v, --verbose  enable shell tracing and extra debug logs
 
 Commands:
   check
@@ -131,11 +135,34 @@ Environment overrides:
   ANDROID_CMDLINE_TOOLS_ARCHIVE
   ANDROID_NDK_ARCHIVE
   RUSTUP_INIT_SCRIPT
+  VERBOSE
 EOF
 }
 
 log() {
   printf '\n==> %s\n' "$*" >&2
+}
+
+is_truthy() {
+  case "${1,,}" in
+    1|true|yes|on)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+debug() {
+  if is_truthy "$VERBOSE"; then
+    printf '[debug] %s\n' "$*" >&2
+  fi
+}
+
+enable_verbose_logging() {
+  export PS4='+ ${BASH_SOURCE##*/}:${LINENO}: '
+  set -x
 }
 
 fail() {
@@ -156,6 +183,7 @@ run_as_root() {
 }
 
 ensure_dirs() {
+  debug "Ensuring tool and cache directories exist"
   mkdir -p \
     "$HOME/sdk" \
     "$HOME/Android" \
@@ -183,6 +211,7 @@ download_with_cache() {
 
   if [[ -n "$explicit_archive" ]]; then
     [[ -f "$explicit_archive" ]] || fail "Archive override not found: $explicit_archive"
+    debug "Using explicit archive override for $cache_name: $explicit_archive"
     printf '%s\n' "$explicit_archive"
     return
   fi
@@ -191,6 +220,8 @@ download_with_cache() {
   if [[ ! -f "$archive_path" ]]; then
     log "Downloading $cache_name"
     curl -fL --retry 3 --output "$archive_path" "$url"
+  else
+    debug "Reusing cached download for $cache_name at $archive_path"
   fi
   printf '%s\n' "$archive_path"
 }
@@ -258,6 +289,7 @@ install_flutter_sdk() {
   local installed_version archive_path temp_dir unpack_root
 
   installed_version="$(current_flutter_version "$sdk_dir" || true)"
+  debug "Detected Flutter SDK version at $sdk_dir: ${installed_version:-missing}"
   if [[ "$installed_version" == "$version" && -x "$sdk_dir/bin/flutter" ]]; then
     patch_flutter_if_needed "$sdk_dir" "$version"
     "$sdk_dir/bin/flutter" config --no-analytics >/dev/null
@@ -299,6 +331,7 @@ ensure_sdkmanager() {
 
   sdkmanager="$(sdkmanager_path)"
   if [[ -x "$sdkmanager" ]]; then
+    debug "Android sdkmanager already present at $sdkmanager"
     return
   fi
 
@@ -333,6 +366,7 @@ ensure_android_sdk_packages() {
   if [[ -d "$ANDROID_SDK_ROOT/platform-tools" ]] && \
      [[ -d "$ANDROID_SDK_ROOT/platforms/android-$ANDROID_API_LEVEL" ]] && \
      [[ -d "$ANDROID_SDK_ROOT/build-tools/$ANDROID_BUILD_TOOLS_VERSION" ]]; then
+    debug "Android SDK packages already present under $ANDROID_SDK_ROOT"
     return
   fi
 
@@ -348,6 +382,7 @@ ensure_android_ndk() {
   local archive_path temp_dir extract_root extracted_dir
 
   if [[ -d "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt" ]]; then
+    debug "Android NDK already present at $ANDROID_NDK_HOME"
     return
   fi
 
@@ -380,6 +415,8 @@ ensure_rust_toolchain() {
       "$RUSTUP_INIT_SCRIPT")"
     log "Installing rustup and Rust $RUST_VERSION"
     sh "$rustup_script" -y --profile minimal --default-toolchain "$RUST_VERSION"
+  else
+    debug "rustup already available"
   fi
 
   rustup_bin="${CARGO_HOME}/bin/rustup"
@@ -417,6 +454,7 @@ ensure_vcpkg() {
   fi
 
   current_commit="$(git -C "$VCPKG_ROOT" rev-parse HEAD)"
+  debug "Current vcpkg commit: $current_commit"
   if [[ "$current_commit" != "$VCPKG_COMMIT_ID" ]]; then
     log "Checking out vcpkg commit $VCPKG_COMMIT_ID"
     if git -C "$VCPKG_ROOT" cat-file -e "$VCPKG_COMMIT_ID^{commit}" 2>/dev/null; then
@@ -571,7 +609,32 @@ install_all() {
 }
 
 main() {
-  local command="${1:-}"
+  local command
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -v|--verbose)
+        VERBOSE=1
+        shift
+        ;;
+      --)
+        shift
+        break
+        ;;
+      *)
+        break
+        ;;
+    esac
+  done
+
+  if is_truthy "$VERBOSE"; then
+    enable_verbose_logging
+    debug "Verbose logging enabled"
+    debug "Repo root: $REPO_ROOT"
+    debug "Downloads directory: $DOWNLOADS_DIR"
+  fi
+
+  command="${1:-}"
 
   case "$command" in
     check)

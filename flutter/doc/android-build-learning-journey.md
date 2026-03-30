@@ -319,6 +319,13 @@ Second encounter recorded during `install-flutter`:
 - impact:
   `install-flutter` should now proceed on Flutter `3.24.5` without failing on a no-longer-applicable patch
 
+Diagnostic improvement added after those encounters:
+
+- the bootstrap script now supports verbose logging with `--verbose` or `VERBOSE=1`
+- verbose mode enables bash command tracing and extra debug lines for cache reuse, archive selection, SDK detection, and toolchain state
+- recommended retry pattern for troubleshooting:
+  `./flutter/setup_android_wsl_toolchain.sh --verbose install-flutter`
+
 Remaining bootstrap steps expected from the current WSL plan:
 
 - rerun `./flutter/setup_android_wsl_toolchain.sh install-flutter`
