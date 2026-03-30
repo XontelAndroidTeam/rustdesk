@@ -12,6 +12,10 @@ This script is intended to be:
 - reusable as the foundation of a future Docker image
 - separate from the repeatable app build/run script
 
+Assumed host:
+
+- Ubuntu 24.04 LTS on WSL 2
+
 The key design choice is to split the workflow into two layers:
 
 - machine/bootstrap setup
@@ -22,6 +26,7 @@ Why:
 - the toolchain setup is expensive and should not run every build
 - the project build script should stay thin and deterministic
 - the same bootstrap logic can later be copied into Docker image build steps
+- Ubuntu 24.04 keeps local WSL setup aligned with the repo's Android CI host
 
 ## Relationship To The WSL Debug Build Plan
 
@@ -68,13 +73,13 @@ Why:
 - the bootstrap script must install versions that match CI assumptions
 - the bootstrap script should not silently drift away from the repo workflows
 
-## Planned Script
+## Implemented Script
 
-Planned file:
+Implemented file:
 
 - `flutter/setup_android_wsl_toolchain.sh`
 
-Planned responsibility:
+Current responsibility:
 
 - install or verify Linux-native prerequisites in WSL
 - configure environment variables and cache locations
@@ -350,6 +355,6 @@ Those belong to the project-level build script.
 
 After this bootstrap script plan is accepted, the next implementation steps are:
 
-1. create `flutter/setup_android_wsl_toolchain.sh`
-2. keep it focused on host setup only
+1. use `flutter/setup_android_wsl_toolchain.sh` to prepare the host toolchain
+2. keep host setup separate from project build logic
 3. then create `flutter/run_android_debug_wsl.sh` as the project build wrapper

@@ -14,6 +14,10 @@ that proven flow later as the basis for a new Docker image.
 For the separate one-time toolchain/bootstrap plan, see
 `doc/android-toolchain-bootstrap-plan-wsl.md`.
 
+Assumed host:
+
+- Ubuntu 24.04 LTS on WSL 2
+
 ## Decisions Already Made
 
 ### 1. Reuse Existing Repo Scripts Where They Already Encode Real Build Logic
