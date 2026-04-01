@@ -68,6 +68,19 @@ act -j build -W .github/workflows/ci.yml
 act workflow_dispatch -W .github/workflows/flutter-ci.yml
 ```
 
+Artifact note for this repository:
+
+- several jobs hand files to later jobs with `actions/upload-artifact` and `actions/download-artifact`
+- when running those workflows with `act`, enable the local artifact service or uploads will fail with `Unable to get ACTIONS_RUNTIME_TOKEN env variable`
+- minimal example for the universal Android job:
+
+```bash
+act -W .github/workflows/flutter-build.yml -j build-rustdesk-android-universal --artifact-server-path ./.act-artifacts
+```
+
+- `build-rustdesk-android-universal` depends on earlier jobs that upload `bridge-artifact` and ABI-specific Android `.so` files, so local artifact support is required for that job graph
+- `flutter-ci.yml` passes `upload-artifact: false`, so it is not the right entry point if you want to run the universal APK job locally
+
 If secrets are required, pass them with `-s KEY=value` or a secrets file. For large workflows in this repo, expect to need Docker images with enough disk and memory, especially for Rust, Flutter, Android, and packaging steps.
 
 ## Workflow inventory in this repository
