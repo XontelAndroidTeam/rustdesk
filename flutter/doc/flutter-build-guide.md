@@ -34,6 +34,44 @@ These are the versions the repository and CI currently point to:
 - `targetSdkVersion`: `33`
 - `minSdkVersion`: `22`
 
+## How The Build Pieces Fit Together
+
+There are three different layers in this repo, and they do different jobs:
+
+- GitHub workflows under `.github/workflows/` orchestrate CI jobs, runner selection, caches, secrets, and release uploads.
+- Shell scripts under `flutter/` and `res/` hold reusable build and packaging commands.
+- Dockerfiles define optional local containerized build environments. In this checkout, the only real Dockerfile is the root `Dockerfile`.
+
+The main call graph looks like this:
+
+```text
+flutter-ci.yml / flutter-nightly.yml / flutter-tag.yml
+  -> flutter-build.yml
+     -> flutter/build_android_deps.sh
+     -> flutter/ndk_arm64.sh, flutter/ndk_arm.sh, flutter/ndk_x64.sh, flutter/ndk_x86.sh
+
+fdroid.yml
+  -> publishes rustdesk-version.txt
+external F-Droid builder
+  -> flutter/build_fdroid.sh
+     -> reads flutter-build.yml and bridge.yml for version pins
+     -> calls flutter/build_android_deps.sh
+
+README Docker commands
+  -> Dockerfile
+     -> entrypoint.sh
+        -> cargo build
+```
+
+Important details:
+
+- `flutter-ci.yml`, `flutter-nightly.yml`, and `flutter-tag.yml` are thin entrypoints that all call the reusable `flutter-build.yml` workflow.
+- `bridge.yml` is a separate workflow for flutter-rust-bridge code generation. It is not folded into the Android APK workflow.
+- `flutter/build_android_deps.sh` and the `flutter/ndk_*.sh` scripts are the main checked-in shell helpers used by Android CI.
+- `flutter/run.sh`, `flutter/build_android.sh`, and `flutter/build_ios.sh` are local/manual helper scripts. They mirror parts of CI logic, but CI does not call them directly in this checkout.
+- `flutter/build_fdroid.sh` is not run by GitHub Actions directly. It is written for the external F-Droid builder and intentionally reads `.github/workflows/flutter-build.yml` and `.github/workflows/bridge.yml` so F-Droid stays aligned with CI pins.
+- `res/startwm.sh` is packaging/runtime support, not CI orchestration. `build.py` copies it into Linux packages.
+
 ## Required Setup
 
 ### 1. Clone The Full Repo And Init Submodules
@@ -273,31 +311,27 @@ You need:
 - vcpkg Android dependencies
 - NDK runtime libraries copied into `jniLibs`
 
-## Docker Android Build
+## Docker In This Checkout
 
-This repo now includes a containerized Android build path:
+The checked-in Docker path in this checkout is the root-level Linux builder:
 
-- `flutter/Dockerfile.android`
-- `flutter/docker/android-build.sh`
+- `Dockerfile`
+- `entrypoint.sh`
 
-Build the image from the repository root so the Docker build context can still see the full repo:
+That path is documented in the root `README.md` and works like this:
 
-```bash
-docker build -f flutter/Dockerfile.android -t rustdesk-android .
-```
+- `docker build -t rustdesk-builder .` builds the image from the root `Dockerfile`
+- `docker run ... rustdesk-builder` starts the container
+- the container entrypoint runs `entrypoint.sh`
+- `entrypoint.sh` prepares target directories, copies `libsciter-gtk.so`, and runs `cargo build`
 
-Run it by mounting the repository root at `/workspace`:
+What Docker is not doing here:
 
-```bash
-docker run --rm -it -v "$PWD:/workspace" rustdesk-android
-```
+- the current GitHub workflows in `.github/workflows/` do not use `docker build`, `docker run`, or a workflow `container:` block against this Dockerfile
+- the Dockerfile is a local build convenience path, not the CI execution environment
 
-Useful environment variables:
+One repo caveat:
 
-- `ANDROID_ABIS=arm64-v8a,armeabi-v7a`
-- `ANDROID_BUILD_MODE=release`
-- `ANDROID_ARTIFACT=apk` or `appbundle`
-- `ANDROID_SPLIT_PER_ABI=1`
-- `GENERATE_BRIDGE=auto`
-
-The container copies finished artifacts to `out/android` in the mounted repository.
+- some notes under `flutter/doc/` mention `flutter/Dockerfile.android` and `flutter/docker/android-build.sh`
+- those files are not present in this checkout
+- treat those references as design notes or stale documentation, not as runnable paths in the repo
