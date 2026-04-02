@@ -41,6 +41,11 @@ env:
   ARMV7_VCPKG_COMMIT_ID: "6f29f12e82a8293156836ad81cc9bf5af41fe836" # 2025.01.13, got "/opt/artifacts/vcpkg/vcpkg: No such file or directory" with latest version
   VERSION: "1.4.6"
   NDK_VERSION: "r28c"
+  ANDROID_SDK_ROOT: "/usr/local/lib/android/sdk"
+  ANDROID_HOME: "/usr/local/lib/android/sdk"
+  ANDROID_CMDLINE_TOOLS_VERSION: "11076708"
+  ANDROID_API_LEVEL: "34"
+  ANDROID_BUILD_TOOLS_VERSION: "34.0.0"
   #signing keys env variable checks
   ANDROID_SIGNING_KEY: "${{ secrets.ANDROID_SIGNING_KEY }}"
   MACOS_P12_BASE64: "${{ secrets.MACOS_P12_BASE64 }}"
@@ -894,6 +899,7 @@ jobs:
                openjdk-17-jdk-headless \
                pkg-config \
                tree \
+               unzip \
                wget
 
       - name: Checkout source code
@@ -943,6 +949,38 @@ jobs:
         run: |
           echo "ANDROID_NDK_HOME=${{ steps.setup-ndk.outputs.ndk-path }}" >> "$GITHUB_ENV"
           echo "ANDROID_NDK_ROOT=${{ steps.setup-ndk.outputs.ndk-path }}" >> "$GITHUB_ENV"
+
+      - name: Setup Android SDK
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          sdkmanager_path="${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager"
+
+          sudo mkdir -p "${ANDROID_SDK_ROOT}/cmdline-tools" "$HOME/.android"
+          : > "$HOME/.android/repositories.cfg"
+
+          if [[ ! -x "$sdkmanager_path" ]]; then
+            archive="commandlinetools-linux-${ANDROID_CMDLINE_TOOLS_VERSION}_latest.zip"
+            temp_dir="$(mktemp -d)"
+
+            curl -fsSL "https://dl.google.com/android/repository/${archive}" -o "${temp_dir}/${archive}"
+            unzip -q "${temp_dir}/${archive}" -d "${temp_dir}"
+
+            sudo rm -rf "${ANDROID_SDK_ROOT}/cmdline-tools/latest"
+            sudo mv "${temp_dir}/cmdline-tools" "${ANDROID_SDK_ROOT}/cmdline-tools/latest"
+
+            rm -rf "${temp_dir}"
+          fi
+
+          echo "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          echo "${ANDROID_SDK_ROOT}/platform-tools" >> "$GITHUB_PATH"
+
+          yes | sudo "${sdkmanager_path}" --licenses >/dev/null
+          sudo "${sdkmanager_path}" \
+            "platform-tools" \
+            "platforms;android-${ANDROID_API_LEVEL}" \
+            "build-tools;${ANDROID_BUILD_TOOLS_VERSION}"
 
       - name: Setup vcpkg with Github Actions binary cache
         uses: lukka/run-vcpkg@v11
@@ -1085,7 +1123,7 @@ jobs:
       - name: Setup sign tool version variable
         shell: bash
         run: |
-          BUILD_TOOL_VERSION=$(ls /usr/local/lib/android/sdk/build-tools/ | tail -n 1)
+          BUILD_TOOL_VERSION=$(ls "${ANDROID_SDK_ROOT}/build-tools/" | tail -n 1)
           echo "ANDROID_SIGN_TOOL_VERSION=$BUILD_TOOL_VERSION" >> $GITHUB_ENV
           echo Last build tool version is: $BUILD_TOOL_VERSION
 
@@ -1189,6 +1227,7 @@ jobs:
                openjdk-17-jdk-headless \
                pkg-config \
                tree \
+               unzip \
                wget
 
       - name: Checkout source code
@@ -1238,6 +1277,38 @@ jobs:
         run: |
           echo "ANDROID_NDK_HOME=${{ steps.setup-ndk.outputs.ndk-path }}" >> "$GITHUB_ENV"
           echo "ANDROID_NDK_ROOT=${{ steps.setup-ndk.outputs.ndk-path }}" >> "$GITHUB_ENV"
+
+      - name: Setup Android SDK
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          sdkmanager_path="${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager"
+
+          sudo mkdir -p "${ANDROID_SDK_ROOT}/cmdline-tools" "$HOME/.android"
+          : > "$HOME/.android/repositories.cfg"
+
+          if [[ ! -x "$sdkmanager_path" ]]; then
+            archive="commandlinetools-linux-${ANDROID_CMDLINE_TOOLS_VERSION}_latest.zip"
+            temp_dir="$(mktemp -d)"
+
+            curl -fsSL "https://dl.google.com/android/repository/${archive}" -o "${temp_dir}/${archive}"
+            unzip -q "${temp_dir}/${archive}" -d "${temp_dir}"
+
+            sudo rm -rf "${ANDROID_SDK_ROOT}/cmdline-tools/latest"
+            sudo mv "${temp_dir}/cmdline-tools" "${ANDROID_SDK_ROOT}/cmdline-tools/latest"
+
+            rm -rf "${temp_dir}"
+          fi
+
+          echo "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          echo "${ANDROID_SDK_ROOT}/platform-tools" >> "$GITHUB_PATH"
+
+          yes | sudo "${sdkmanager_path}" --licenses >/dev/null
+          sudo "${sdkmanager_path}" \
+            "platform-tools" \
+            "platforms;android-${ANDROID_API_LEVEL}" \
+            "build-tools;${ANDROID_BUILD_TOOLS_VERSION}"
 
       - name: Restore bridge files
         uses: actions/download-artifact@master
@@ -1301,7 +1372,7 @@ jobs:
       - name: Setup sign tool version variable
         shell: bash
         run: |
-          BUILD_TOOL_VERSION=$(ls /usr/local/lib/android/sdk/build-tools/ | tail -n 1)
+          BUILD_TOOL_VERSION=$(ls "${ANDROID_SDK_ROOT}/build-tools/" | tail -n 1)
           echo "ANDROID_SIGN_TOOL_VERSION=$BUILD_TOOL_VERSION" >> $GITHUB_ENV
           echo Last build tool version is: $BUILD_TOOL_VERSION
 
