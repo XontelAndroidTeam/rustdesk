@@ -938,6 +938,12 @@ jobs:
           ndk-version: ${{ env.NDK_VERSION }}
           add-to-path: true
 
+      - name: Export Android NDK env
+        shell: bash
+        run: |
+          echo "ANDROID_NDK_HOME=${{ steps.setup-ndk.outputs.ndk-path }}" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_ROOT=${{ steps.setup-ndk.outputs.ndk-path }}" >> "$GITHUB_ENV"
+
       - name: Setup vcpkg with Github Actions binary cache
         uses: lukka/run-vcpkg@v11
         with:
@@ -946,9 +952,6 @@ jobs:
           doNotCache: false
 
       - name: Install vcpkg dependencies
-        env:
-          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
-          ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
         run: |
           case ${{ matrix.job.target }} in
             aarch64-linux-android)
@@ -994,9 +997,6 @@ jobs:
           key: ${{ matrix.job.target }}
 
       - name: Build rustdesk lib
-        env:
-          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
-          ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
         run: |
           rustup target add ${{ matrix.job.target }}
           cargo install cargo-ndk --version ${{ env.CARGO_NDK_VERSION }} --locked
@@ -1226,6 +1226,18 @@ jobs:
             echo "Flutter patch does not apply cleanly to $sdk_dir" >&2
             exit 1
           fi
+
+      - uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: ${{ env.NDK_VERSION }}
+          add-to-path: true
+
+      - name: Export Android NDK env
+        shell: bash
+        run: |
+          echo "ANDROID_NDK_HOME=${{ steps.setup-ndk.outputs.ndk-path }}" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_ROOT=${{ steps.setup-ndk.outputs.ndk-path }}" >> "$GITHUB_ENV"
 
       - name: Restore bridge files
         uses: actions/download-artifact@master
