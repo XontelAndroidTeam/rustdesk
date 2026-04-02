@@ -72,13 +72,17 @@ Artifact note for this repository:
 
 - several jobs hand files to later jobs with `actions/upload-artifact` and `actions/download-artifact`
 - when running those workflows with `act`, enable the local artifact service or uploads will fail with `Unable to get ACTIONS_RUNTIME_TOKEN env variable`
+- known `act` problems and their command-line fixes are collected in `flutter/doc/act-known-issues.md`
+- the same note also includes the local `aarch64` / `arm64-v8a` build command
 - minimal example for the universal Android job:
 
 ```bash
-act -W .github/workflows/flutter-build.yml -j build-rustdesk-android-universal --artifact-server-path ./.act-artifacts
+act -W .github/workflows/flutter-build.yml -j build-rustdesk-android-universal --artifact-server-path ./.act-artifacts -P ubuntu-24.04=ghcr.io/catthehacker/ubuntu:act-24.04 -s GITHUB_TOKEN=YOUR_TOKEN
 ```
 
 - `build-rustdesk-android-universal` depends on earlier jobs that upload `bridge-artifact` and ABI-specific Android `.so` files, so local artifact support is required for that job graph
+- in this workspace, `.github/workflows/flutter-build.yml` currently has only the `aarch64-linux-android` Android matrix entry enabled, so use `build-rustdesk-android` for the local `arm64-v8a` path unless you re-enable the other Android targets
+- if `act` says `Skipping unsupported platform`, add a platform mapping for `ubuntu-24.04`; if the smaller image is not sufficient, try `ghcr.io/catthehacker/ubuntu:full-24.04`
 - `flutter-ci.yml` passes `upload-artifact: false`, so it is not the right entry point if you want to run the universal APK job locally
 
 If secrets are required, pass them with `-s KEY=value` or a secrets file. For large workflows in this repo, expect to need Docker images with enough disk and memory, especially for Rust, Flutter, Android, and packaging steps.
