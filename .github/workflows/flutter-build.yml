@@ -1989,7 +1989,7 @@ jobs:
             flatpak/rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}${{ matrix.job.suffix }}.flatpak
 
   build-rustdesk-web:
-    if: False
+    if: false
     name: build-rustdesk-web
     runs-on: ubuntu-22.04
     permissions:
