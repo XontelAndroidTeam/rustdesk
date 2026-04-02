@@ -908,9 +908,29 @@ jobs:
           flutter-version: ${{ env.ANDROID_FLUTTER_VERSION }}
 
       - name: Patch flutter
+        shell: bash
         run: |
-          cd $(dirname $(dirname $(which flutter)))
-          [[ "3.24.5" == ${{env.ANDROID_FLUTTER_VERSION}} ]] && git apply ${{ github.workspace }}/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff
+          sdk_dir=$(dirname "$(dirname "$(which flutter)")")
+          patch_file="${{ github.workspace }}/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff"
+          dropdown_menu_path="$sdk_dir/packages/flutter/lib/src/material/dropdown_menu.dart"
+
+          if [[ "${{ env.ANDROID_FLUTTER_VERSION }}" != "3.24.5" ]]; then
+            exit 0
+          fi
+
+          if git apply --check --reverse --directory="$sdk_dir" "$patch_file" >/dev/null 2>&1; then
+            echo "Flutter patch already present in $sdk_dir"
+          elif git apply --check --directory="$sdk_dir" "$patch_file" >/dev/null 2>&1; then
+            git apply --directory="$sdk_dir" "$patch_file"
+          elif [[ -f "$dropdown_menu_path" ]] && \
+            grep -Fq 'bool _enableFilter = false;' "$dropdown_menu_path" && \
+            grep -Fq 'if (oldWidget.enableFilter != widget.enableFilter) {' "$dropdown_menu_path" && \
+            grep -Fq 'filteredEntries = widget.dropdownMenuEntries;' "$dropdown_menu_path"; then
+            echo "Skipping Flutter patch because the equivalent fix is already present in $dropdown_menu_path"
+          else
+            echo "Flutter patch does not apply cleanly to $sdk_dir" >&2
+            exit 1
+          fi
 
       - uses: nttld/setup-ndk@v1
         id: setup-ndk
@@ -1180,9 +1200,29 @@ jobs:
           flutter-version: ${{ env.ANDROID_FLUTTER_VERSION }}
 
       - name: Patch flutter
+        shell: bash
         run: |
-          cd $(dirname $(dirname $(which flutter)))
-          [[ "3.24.5" == ${{env.ANDROID_FLUTTER_VERSION}} ]] && git apply ${{ github.workspace }}/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff
+          sdk_dir=$(dirname "$(dirname "$(which flutter)")")
+          patch_file="${{ github.workspace }}/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff"
+          dropdown_menu_path="$sdk_dir/packages/flutter/lib/src/material/dropdown_menu.dart"
+
+          if [[ "${{ env.ANDROID_FLUTTER_VERSION }}" != "3.24.5" ]]; then
+            exit 0
+          fi
+
+          if git apply --check --reverse --directory="$sdk_dir" "$patch_file" >/dev/null 2>&1; then
+            echo "Flutter patch already present in $sdk_dir"
+          elif git apply --check --directory="$sdk_dir" "$patch_file" >/dev/null 2>&1; then
+            git apply --directory="$sdk_dir" "$patch_file"
+          elif [[ -f "$dropdown_menu_path" ]] && \
+            grep -Fq 'bool _enableFilter = false;' "$dropdown_menu_path" && \
+            grep -Fq 'if (oldWidget.enableFilter != widget.enableFilter) {' "$dropdown_menu_path" && \
+            grep -Fq 'filteredEntries = widget.dropdownMenuEntries;' "$dropdown_menu_path"; then
+            echo "Skipping Flutter patch because the equivalent fix is already present in $dropdown_menu_path"
+          else
+            echo "Flutter patch does not apply cleanly to $sdk_dir" >&2
+            exit 1
+          fi
 
       - name: Restore bridge files
         uses: actions/download-artifact@master
