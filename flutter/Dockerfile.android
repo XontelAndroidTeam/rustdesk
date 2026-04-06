@@ -1,0 +1,200 @@
+# Build from the repository root so this file can copy `.github/patches/...`:
+#   docker build -f flutter/Dockerfile.android -t rustdesk-android-env .
+
+FROM ubuntu:24.04
+
+ARG DEBIAN_FRONTEND=noninteractive
+ARG USERNAME=builder
+ARG USER_UID=1000
+ARG USER_GID=1000
+ARG RUST_VERSION=1.75
+ARG CARGO_NDK_VERSION=3.1.2
+ARG CARGO_EXPAND_VERSION=1.0.95
+ARG FLUTTER_RUST_BRIDGE_VERSION=1.80.1
+ARG FLUTTER_VERSION=3.24.5
+ARG FLUTTER_BRIDGE_VERSION=3.22.3
+ARG VCPKG_COMMIT_ID=120deac3062162151622ca4860575a33844ba10b
+ARG ANDROID_CMDLINE_TOOLS_VERSION=11076708
+ARG ANDROID_API_LEVEL=34
+ARG ANDROID_BUILD_TOOLS_VERSION=34.0.0
+ARG ANDROID_NDK_RELEASE=r28c
+
+ENV LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8 \
+    JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 \
+    FLUTTER_HOME=/opt/flutter \
+    FLUTTER_BRIDGE_HOME=/opt/flutter-bridge \
+    ANDROID_SDK_ROOT=/opt/android-sdk \
+    ANDROID_HOME=/opt/android-sdk \
+    ANDROID_NDK_HOME=/opt/android-sdk/ndk/${ANDROID_NDK_RELEASE} \
+    ANDROID_NDK_ROOT=/opt/android-sdk/ndk/${ANDROID_NDK_RELEASE} \
+    VCPKG_ROOT=/opt/vcpkg \
+    VCPKG_DISABLE_METRICS=1 \
+    VCPKG_FORCE_SYSTEM_BINARIES=1 \
+    PUB_CACHE=/opt/.pub-cache \
+    GRADLE_USER_HOME=/opt/.gradle \
+    CARGO_HOME=/opt/.cargo \
+    RUSTUP_HOME=/opt/.rustup \
+    CARGO_TARGET_DIR=/workspace/target \
+    PATH=/usr/lib/jvm/java-17-openjdk-amd64/bin:/opt/.cargo/bin:/opt/flutter/bin:/opt/android-sdk/cmdline-tools/latest/bin:/opt/android-sdk/platform-tools:/opt/vcpkg:${PATH}
+
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+RUN echo "START: Install host packages" && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+      ca-certificates \
+      clang \
+      cmake \
+      curl \
+      g++ \
+      g++-multilib \
+      gcc-multilib \
+      git \
+      libasound2-dev \
+      libayatana-appindicator3-dev \
+      libc6-dev \
+      libclang-dev \
+      libgstreamer-plugins-base1.0-dev \
+      libgstreamer1.0-dev \
+      libgtk-3-dev \
+      libpam0g-dev \
+      libpulse-dev \
+      libunwind-dev \
+      libva-dev \
+      libxcb-randr0-dev \
+      libxcb-shape0-dev \
+      libxcb-xfixes0-dev \
+      libxdo-dev \
+      libxfixes-dev \
+      llvm-dev \
+      nasm \
+      ninja-build \
+      openjdk-17-jdk-headless \
+      pkg-config \
+      python3 \
+      tree \
+      unzip \
+      wget \
+      xz-utils \
+      zip && \
+    rm -rf /var/lib/apt/lists/* && \
+    echo "SUCCESS: Install host packages" || { status=$?; echo "FAILED: Install host packages"; exit ${status}; }
+
+COPY .github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff /tmp/flutter_dropdown_menu.patch
+
+RUN echo "START: Install main Flutter SDK" && \
+    curl -fsSL "https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz" -o /tmp/flutter.tar.xz && \
+    tar -xJf /tmp/flutter.tar.xz -C /opt && \
+    rm -f /tmp/flutter.tar.xz && \
+    if [[ "${FLUTTER_VERSION}" == "3.24.5" ]]; then \
+      dropdown_menu_path="${FLUTTER_HOME}/packages/flutter/lib/src/material/dropdown_menu.dart" && \
+      if git apply --check --reverse --directory="${FLUTTER_HOME}" /tmp/flutter_dropdown_menu.patch >/dev/null 2>&1; then \
+        echo "Flutter patch already present in ${FLUTTER_HOME}"; \
+      elif git apply --check --directory="${FLUTTER_HOME}" /tmp/flutter_dropdown_menu.patch >/dev/null 2>&1; then \
+        git apply --directory="${FLUTTER_HOME}" /tmp/flutter_dropdown_menu.patch; \
+      elif [[ -f "${dropdown_menu_path}" ]] && \
+        grep -Fq 'bool _enableFilter = false;' "${dropdown_menu_path}" && \
+        grep -Fq 'if (oldWidget.enableFilter != widget.enableFilter) {' "${dropdown_menu_path}" && \
+        grep -Fq 'filteredEntries = widget.dropdownMenuEntries;' "${dropdown_menu_path}"; then \
+        echo "Skipping Flutter patch because the equivalent fix is already present in ${dropdown_menu_path}"; \
+      else \
+        echo "Flutter patch does not apply cleanly to ${FLUTTER_HOME}" >&2; \
+        exit 1; \
+      fi; \
+    fi && \
+    "${FLUTTER_HOME}/bin/flutter" config --no-analytics && \
+    "${FLUTTER_HOME}/bin/flutter" precache --android && \
+    rm -f /tmp/flutter_dropdown_menu.patch && \
+    echo "SUCCESS: Install main Flutter SDK" || { status=$?; echo "FAILED: Install main Flutter SDK"; exit ${status}; }
+
+RUN echo "START: Install bridge Flutter SDK" && \
+    curl -fsSL "https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_BRIDGE_VERSION}-stable.tar.xz" -o /tmp/flutter-bridge.tar.xz && \
+    mkdir -p /tmp/flutter-bridge && \
+    tar -xJf /tmp/flutter-bridge.tar.xz -C /tmp/flutter-bridge && \
+    mv /tmp/flutter-bridge/flutter "${FLUTTER_BRIDGE_HOME}" && \
+    rm -rf /tmp/flutter-bridge && \
+    rm -f /tmp/flutter-bridge.tar.xz && \
+    "${FLUTTER_BRIDGE_HOME}/bin/flutter" config --no-analytics && \
+    echo "SUCCESS: Install bridge Flutter SDK" || { status=$?; echo "FAILED: Install bridge Flutter SDK"; exit ${status}; }
+
+RUN echo "START: Install Android SDK tools and packages" && \
+    mkdir -p "${ANDROID_SDK_ROOT}/cmdline-tools" /root/.android && \
+    : > /root/.android/repositories.cfg && \
+    curl -fsSL "https://dl.google.com/android/repository/commandlinetools-linux-${ANDROID_CMDLINE_TOOLS_VERSION}_latest.zip" -o /tmp/android-cmdline-tools.zip && \
+    mkdir -p /tmp/android-sdk && \
+    unzip -q /tmp/android-cmdline-tools.zip -d /tmp/android-sdk && \
+    mv /tmp/android-sdk/cmdline-tools "${ANDROID_SDK_ROOT}/cmdline-tools/latest" && \
+    rm -rf /tmp/android-cmdline-tools.zip /tmp/android-sdk && \
+    set +o pipefail && \
+    yes | sdkmanager --licenses >/dev/null; \
+    license_statuses=("${PIPESTATUS[@]}") && \
+    set -o pipefail && \
+    yes_status="${license_statuses[0]:-1}" && \
+    sdkmanager_status="${license_statuses[1]:-1}" && \
+    if [[ "${sdkmanager_status}" -ne 0 || ( "${yes_status}" -ne 0 && "${yes_status}" -ne 141 ) ]]; then \
+      exit "${sdkmanager_status}"; \
+    fi && \
+    sdkmanager \
+      "platform-tools" \
+      "platforms;android-${ANDROID_API_LEVEL}" \
+      "build-tools;${ANDROID_BUILD_TOOLS_VERSION}" && \
+    echo "SUCCESS: Install Android SDK tools and packages" || { status=$?; echo "FAILED: Install Android SDK tools and packages"; exit ${status}; }
+
+RUN echo "START: Install Android NDK" && \
+    mkdir -p "${ANDROID_SDK_ROOT}/ndk" && \
+    curl -fsSL "https://dl.google.com/android/repository/android-ndk-${ANDROID_NDK_RELEASE}-linux.zip" -o /tmp/android-ndk.zip && \
+    unzip -q /tmp/android-ndk.zip -d "${ANDROID_SDK_ROOT}/ndk" && \
+    mv "${ANDROID_SDK_ROOT}/ndk/android-ndk-${ANDROID_NDK_RELEASE}" "${ANDROID_NDK_HOME}" && \
+    rm -f /tmp/android-ndk.zip && \
+    echo "SUCCESS: Install Android NDK" || { status=$?; echo "FAILED: Install Android NDK"; exit ${status}; }
+
+RUN echo "START: Install Rust toolchain and cargo helpers" && \
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o /tmp/rustup-init.sh && \
+    sh /tmp/rustup-init.sh -y --profile minimal --default-toolchain "${RUST_VERSION}" && \
+    rm -f /tmp/rustup-init.sh && \
+    rustup component add rustfmt && \
+    rustup target add \
+      aarch64-linux-android \
+      armv7-linux-androideabi \
+      x86_64-linux-android \
+      i686-linux-android && \
+    cargo install cargo-ndk --version "${CARGO_NDK_VERSION}" --locked && \
+    cargo install cargo-expand --version "${CARGO_EXPAND_VERSION}" --locked && \
+    cargo install flutter_rust_bridge_codegen --version "${FLUTTER_RUST_BRIDGE_VERSION}" --features uuid --locked && \
+    echo "SUCCESS: Install Rust toolchain and cargo helpers" || { status=$?; echo "FAILED: Install Rust toolchain and cargo helpers"; exit ${status}; }
+
+RUN echo "START: Install vcpkg" && \
+    git clone https://github.com/microsoft/vcpkg "${VCPKG_ROOT}" && \
+    git -C "${VCPKG_ROOT}" checkout "${VCPKG_COMMIT_ID}" && \
+    "${VCPKG_ROOT}/bootstrap-vcpkg.sh" -disableMetrics && \
+    echo "SUCCESS: Install vcpkg" || { status=$?; echo "FAILED: Install vcpkg"; exit ${status}; }
+
+COPY flutter/docker/android-entrypoint.sh /usr/local/bin/android-entrypoint.sh
+COPY flutter/docker/android-build.sh /usr/local/bin/rustdesk-android-build
+
+RUN echo "START: Configure container user and permissions" && \
+    groupadd --gid "${USER_GID}" "${USERNAME}" && \
+    useradd --uid "${USER_UID}" --gid "${USER_GID}" --create-home --shell /bin/bash "${USERNAME}" && \
+    mkdir -p /workspace "${PUB_CACHE}" "${GRADLE_USER_HOME}" && \
+    chown -R "${USERNAME}:${USERNAME}" \
+      /home/"${USERNAME}" \
+      /workspace \
+      "${FLUTTER_HOME}" \
+      "${FLUTTER_BRIDGE_HOME}" \
+      "${ANDROID_SDK_ROOT}" \
+      "${VCPKG_ROOT}" \
+      "${PUB_CACHE}" \
+      "${GRADLE_USER_HOME}" \
+      "${CARGO_HOME}" \
+      "${RUSTUP_HOME}" \
+      /usr/local/bin/android-entrypoint.sh \
+      /usr/local/bin/rustdesk-android-build && \
+    chmod +x /usr/local/bin/android-entrypoint.sh /usr/local/bin/rustdesk-android-build && \
+    echo "SUCCESS: Configure container user and permissions" || { status=$?; echo "FAILED: Configure container user and permissions"; exit ${status}; }
+
+USER ${USERNAME}
+WORKDIR /workspace
+
+ENTRYPOINT ["/usr/local/bin/android-entrypoint.sh"]
+CMD ["bash"]
