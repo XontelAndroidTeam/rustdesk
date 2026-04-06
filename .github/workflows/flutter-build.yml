@@ -976,7 +976,20 @@ jobs:
           echo "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
           echo "${ANDROID_SDK_ROOT}/platform-tools" >> "$GITHUB_PATH"
 
+          set +o pipefail
           yes | sudo "${sdkmanager_path}" --licenses >/dev/null
+          license_statuses=("${PIPESTATUS[@]}")
+          set -o pipefail
+
+          yes_status="${license_statuses[0]:-1}"
+          sdkmanager_status="${license_statuses[1]:-1}"
+
+          if [[ "$sdkmanager_status" -eq 0 && ( "$yes_status" -eq 0 || "$yes_status" -eq 141 ) ]]; then
+            echo "Android SDK licenses accepted"
+          else
+            echo "Android SDK license acceptance failed (yes=${yes_status}, sdkmanager=${sdkmanager_status})" >&2
+            exit "$sdkmanager_status"
+          fi
           sudo "${sdkmanager_path}" \
             "platform-tools" \
             "platforms;android-${ANDROID_API_LEVEL}" \
@@ -1304,7 +1317,20 @@ jobs:
           echo "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
           echo "${ANDROID_SDK_ROOT}/platform-tools" >> "$GITHUB_PATH"
 
+          set +o pipefail
           yes | sudo "${sdkmanager_path}" --licenses >/dev/null
+          license_statuses=("${PIPESTATUS[@]}")
+          set -o pipefail
+
+          yes_status="${license_statuses[0]:-1}"
+          sdkmanager_status="${license_statuses[1]:-1}"
+
+          if [[ "$sdkmanager_status" -eq 0 && ( "$yes_status" -eq 0 || "$yes_status" -eq 141 ) ]]; then
+            echo "Android SDK licenses accepted"
+          else
+            echo "Android SDK license acceptance failed (yes=${yes_status}, sdkmanager=${sdkmanager_status})" >&2
+            exit "$sdkmanager_status"
+          fi
           sudo "${sdkmanager_path}" \
             "platform-tools" \
             "platforms;android-${ANDROID_API_LEVEL}" \

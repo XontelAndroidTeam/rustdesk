@@ -371,7 +371,19 @@ ensure_android_sdk_packages() {
   fi
 
   log "Installing Android SDK packages"
+  set +o pipefail
   yes | "$sdkmanager" --licenses >/dev/null
+  local license_statuses=("${PIPESTATUS[@]}")
+  set -o pipefail
+
+  local yes_status="${license_statuses[0]:-1}"
+  local sdkmanager_status="${license_statuses[1]:-1}"
+
+  if [[ "$sdkmanager_status" -eq 0 && ( "$yes_status" -eq 0 || "$yes_status" -eq 141 ) ]]; then
+    log "Android SDK licenses accepted"
+  else
+    fail "Android SDK license acceptance failed (yes=${yes_status}, sdkmanager=${sdkmanager_status})"
+  fi
   "$sdkmanager" \
     "platform-tools" \
     "platforms;android-${ANDROID_API_LEVEL}" \
