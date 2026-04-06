@@ -46,7 +46,8 @@ env:
   ANDROID_CMDLINE_TOOLS_VERSION: "11076708"
   ANDROID_API_LEVEL: "34"
   ANDROID_BUILD_TOOLS_VERSION: "34.0.0"
-  ANDROID_APK_OUTPUT_DIR: "signed-apk"
+  ANDROID_SIGNED_APK_OUTPUT_DIR: "signed-apk"
+  ANDROID_UNSIGNED_APK_OUTPUT_DIR: "unsigned-apk"
   #signing keys env variable checks
   ANDROID_SIGNING_KEY: "${{ secrets.ANDROID_SIGNING_KEY }}"
   MACOS_P12_BASE64: "${{ secrets.MACOS_P12_BASE64 }}"
@@ -1087,13 +1088,13 @@ jobs:
           JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
         run: |
           export PATH=/usr/lib/jvm/java-17-openjdk-amd64/bin:$PATH
-          apk_output_dir="${ANDROID_APK_OUTPUT_DIR}"
-          if [[ "${apk_output_dir}" = /* ]]; then
-            apk_output_dir_abs="${apk_output_dir}"
+          unsigned_apk_output_dir="${ANDROID_UNSIGNED_APK_OUTPUT_DIR}"
+          if [[ "${unsigned_apk_output_dir}" = /* ]]; then
+            unsigned_apk_output_dir_abs="${unsigned_apk_output_dir}"
           else
-            apk_output_dir_abs="${PWD}/${apk_output_dir}"
+            unsigned_apk_output_dir_abs="${PWD}/${unsigned_apk_output_dir}"
           fi
-          mkdir -p "${apk_output_dir_abs}"
+          mkdir -p "${unsigned_apk_output_dir_abs}"
           # Increase Gradle JVM memory for CI builds
           sed -i "s/org.gradle.jvmargs=-Xmx1024M/org.gradle.jvmargs=-Xmx2g/g" ./flutter/android/gradle.properties
           # temporary use debug sign config
@@ -1106,7 +1107,7 @@ jobs:
               # build flutter
               pushd flutter
               flutter build apk "--${{ matrix.job.reltype }}" --target-platform android-arm64 --split-per-abi
-              mv build/app/outputs/flutter-apk/app-arm64-v8a-${{ matrix.job.reltype }}.apk "${apk_output_dir_abs}/rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}${{ matrix.job.suffix }}.apk"
+              mv build/app/outputs/flutter-apk/app-arm64-v8a-${{ matrix.job.reltype }}.apk "${unsigned_apk_output_dir_abs}/rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}${{ matrix.job.suffix }}.apk"
             ;;
             armv7-linux-androideabi)
               mkdir -p ./flutter/android/app/src/main/jniLibs/armeabi-v7a
@@ -1115,7 +1116,7 @@ jobs:
               # build flutter
               pushd flutter
               flutter build apk "--${{ matrix.job.reltype }}" --target-platform android-arm --split-per-abi
-              mv build/app/outputs/flutter-apk/app-armeabi-v7a-${{ matrix.job.reltype }}.apk "${apk_output_dir_abs}/rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}${{ matrix.job.suffix }}.apk"
+              mv build/app/outputs/flutter-apk/app-armeabi-v7a-${{ matrix.job.reltype }}.apk "${unsigned_apk_output_dir_abs}/rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}${{ matrix.job.suffix }}.apk"
             ;;
             x86_64-linux-android)
               mkdir -p ./flutter/android/app/src/main/jniLibs/x86_64
@@ -1124,7 +1125,7 @@ jobs:
               # build flutter
               pushd flutter
               flutter build apk "--${{ matrix.job.reltype }}" --target-platform android-x64 --split-per-abi
-              mv build/app/outputs/flutter-apk/app-x86_64-${{ matrix.job.reltype }}.apk "${apk_output_dir_abs}/rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}${{ matrix.job.suffix }}.apk"
+              mv build/app/outputs/flutter-apk/app-x86_64-${{ matrix.job.reltype }}.apk "${unsigned_apk_output_dir_abs}/rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}${{ matrix.job.suffix }}.apk"
             ;;
             i686-linux-android)
               mkdir -p ./flutter/android/app/src/main/jniLibs/x86
@@ -1133,11 +1134,11 @@ jobs:
               # build flutter
               pushd flutter
               flutter build apk "--${{ matrix.job.reltype }}" --target-platform android-x86 --split-per-abi
-              mv build/app/outputs/flutter-apk/app-x86-${{ matrix.job.reltype }}.apk "${apk_output_dir_abs}/rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}${{ matrix.job.suffix }}.apk"
+              mv build/app/outputs/flutter-apk/app-x86-${{ matrix.job.reltype }}.apk "${unsigned_apk_output_dir_abs}/rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}${{ matrix.job.suffix }}.apk"
             ;;
           esac
           popd
-          echo "APK available at ${apk_output_dir_abs}/rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}${{ matrix.job.suffix }}.apk"
+          echo "Unsigned APK available at ${unsigned_apk_output_dir_abs}/rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}${{ matrix.job.suffix }}.apk"
 
       # https://github.com/r0adkll/sign-android-release/issues/84#issuecomment-1889636075
       - name: Setup sign tool version variable
@@ -1147,12 +1148,33 @@ jobs:
           echo "ANDROID_SIGN_TOOL_VERSION=$BUILD_TOOL_VERSION" >> $GITHUB_ENV
           echo Last build tool version is: $BUILD_TOOL_VERSION
 
+      - name: Prepare signed APK directory
+        if: env.ANDROID_SIGNING_KEY != null
+        shell: bash
+        run: |
+          unsigned_apk_output_dir="${ANDROID_UNSIGNED_APK_OUTPUT_DIR}"
+          signed_apk_output_dir="${ANDROID_SIGNED_APK_OUTPUT_DIR}"
+          if [[ "${unsigned_apk_output_dir}" = /* ]]; then
+            unsigned_apk_output_dir_abs="${unsigned_apk_output_dir}"
+          else
+            unsigned_apk_output_dir_abs="${PWD}/${unsigned_apk_output_dir}"
+          fi
+          if [[ "${signed_apk_output_dir}" = /* ]]; then
+            signed_apk_output_dir_abs="${signed_apk_output_dir}"
+          else
+            signed_apk_output_dir_abs="${PWD}/${signed_apk_output_dir}"
+          fi
+          mkdir -p "${signed_apk_output_dir_abs}"
+          cp "${unsigned_apk_output_dir_abs}/rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}${{ matrix.job.suffix }}.apk" \
+            "${signed_apk_output_dir_abs}/rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}${{ matrix.job.suffix }}.apk"
+          echo "Signed APK will be written to ${signed_apk_output_dir_abs}/rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}${{ matrix.job.suffix }}.apk"
+
       - uses: r0adkll/sign-android-release@v1
         name: Sign app APK
         if: env.ANDROID_SIGNING_KEY != null
         id: sign-rustdesk
         with:
-          releaseDirectory: ${{ env.ANDROID_APK_OUTPUT_DIR }}
+          releaseDirectory: ${{ env.ANDROID_SIGNED_APK_OUTPUT_DIR }}
           signingKeyBase64: ${{ secrets.ANDROID_SIGNING_KEY }}
           alias: ${{ secrets.ANDROID_ALIAS }}
           keyStorePassword: ${{ secrets.ANDROID_KEY_STORE_PASSWORD }}
@@ -1161,12 +1183,42 @@ jobs:
           # env.ANDROID_SIGN_TOOL_VERSION is set by Step "Setup sign tool version variable"
           BUILD_TOOLS_VERSION: ${{ env.ANDROID_SIGN_TOOL_VERSION }}
 
+      - name: Normalize signed APK path
+        if: env.ANDROID_SIGNING_KEY != null
+        shell: bash
+        run: |
+          signed_apk_output_dir="${ANDROID_SIGNED_APK_OUTPUT_DIR}"
+          if [[ "${signed_apk_output_dir}" = /* ]]; then
+            signed_apk_output_dir_abs="${signed_apk_output_dir}"
+          else
+            signed_apk_output_dir_abs="${PWD}/${signed_apk_output_dir}"
+          fi
+          mkdir -p "${signed_apk_output_dir_abs}"
+          signed_src="${{ steps.sign-rustdesk.outputs.signedReleaseFile }}"
+          if [[ "${signed_src}" = /* ]]; then
+            signed_src_abs="${signed_src}"
+          else
+            signed_src_abs="${PWD}/${signed_src}"
+          fi
+          signed_dst_abs="${signed_apk_output_dir_abs}/rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}${{ matrix.job.suffix }}.apk"
+          if [[ "${signed_src_abs}" != "${signed_dst_abs}" ]]; then
+            cp "${signed_src_abs}" "${signed_dst_abs}"
+          fi
+          echo "Signed APK available at ${signed_dst_abs}"
+
       - name: Upload Artifacts
         if: env.ANDROID_SIGNING_KEY != null && env.UPLOAD_ARTIFACT == 'true'
         uses: actions/upload-artifact@master
         with:
           name: rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.apk
-          path: ${{steps.sign-rustdesk.outputs.signedReleaseFile}}
+          path: ${{ env.ANDROID_SIGNED_APK_OUTPUT_DIR }}/rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}${{ matrix.job.suffix }}.apk
+
+      - name: Upload unsigned APK artifact
+        if: env.ANDROID_SIGNING_KEY == null && env.UPLOAD_ARTIFACT == 'true'
+        uses: actions/upload-artifact@master
+        with:
+          name: rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}${{ matrix.job.suffix }}.apk
+          path: ${{ env.ANDROID_UNSIGNED_APK_OUTPUT_DIR }}/rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}${{ matrix.job.suffix }}.apk
 
       - name: Publish signed apk package
         if: env.ANDROID_SIGNING_KEY != null && env.UPLOAD_ARTIFACT == 'true'
@@ -1175,7 +1227,7 @@ jobs:
           prerelease: true
           tag_name: ${{ env.TAG_NAME }}
           files: |
-            ${{steps.sign-rustdesk.outputs.signedReleaseFile}}
+            ${{ env.ANDROID_SIGNED_APK_OUTPUT_DIR }}/rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}${{ matrix.job.suffix }}.apk
 
       - name: Publish unsigned apk package
         if: env.ANDROID_SIGNING_KEY == null && env.UPLOAD_ARTIFACT == 'true'
@@ -1184,7 +1236,7 @@ jobs:
           prerelease: true
           tag_name: ${{ env.TAG_NAME }}
           files: |
-            ${{ env.ANDROID_APK_OUTPUT_DIR }}/rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.apk
+            ${{ env.ANDROID_UNSIGNED_APK_OUTPUT_DIR }}/rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}${{ matrix.job.suffix }}.apk
 
   build-rustdesk-android-universal:
     needs: [build-rustdesk-android]
@@ -1380,13 +1432,13 @@ jobs:
           JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
         run: |
           export PATH=/usr/lib/jvm/java-17-openjdk-amd64/bin:$PATH
-          apk_output_dir="${ANDROID_APK_OUTPUT_DIR}"
-          if [[ "${apk_output_dir}" = /* ]]; then
-            apk_output_dir_abs="${apk_output_dir}"
+          unsigned_apk_output_dir="${ANDROID_UNSIGNED_APK_OUTPUT_DIR}"
+          if [[ "${unsigned_apk_output_dir}" = /* ]]; then
+            unsigned_apk_output_dir_abs="${unsigned_apk_output_dir}"
           else
-            apk_output_dir_abs="${PWD}/${apk_output_dir}"
+            unsigned_apk_output_dir_abs="${PWD}/${unsigned_apk_output_dir}"
           fi
-          mkdir -p "${apk_output_dir_abs}"
+          mkdir -p "${unsigned_apk_output_dir_abs}"
           # Increase Gradle JVM memory for CI builds
           sed -i "s/org.gradle.jvmargs=-Xmx1024M/org.gradle.jvmargs=-Xmx2g/g" ./flutter/android/gradle.properties
           # temporary use debug sign config
@@ -1405,8 +1457,8 @@ jobs:
           pushd flutter
           flutter build apk "--${{ env.reltype }}" --target-platform android-arm64,android-arm,android-x64${{ env.x86_target }}
           popd
-          mv ./flutter/build/app/outputs/flutter-apk/app-${{ env.reltype }}.apk "${apk_output_dir_abs}/rustdesk-${{ env.VERSION }}-universal${{ env.suffix }}.apk"
-          echo "APK available at ${apk_output_dir_abs}/rustdesk-${{ env.VERSION }}-universal${{ env.suffix }}.apk"
+          mv ./flutter/build/app/outputs/flutter-apk/app-${{ env.reltype }}.apk "${unsigned_apk_output_dir_abs}/rustdesk-${{ env.VERSION }}-universal${{ env.suffix }}.apk"
+          echo "Unsigned APK available at ${unsigned_apk_output_dir_abs}/rustdesk-${{ env.VERSION }}-universal${{ env.suffix }}.apk"
 
       # https://github.com/r0adkll/sign-android-release/issues/84#issuecomment-1889636075
       - name: Setup sign tool version variable
@@ -1416,12 +1468,33 @@ jobs:
           echo "ANDROID_SIGN_TOOL_VERSION=$BUILD_TOOL_VERSION" >> $GITHUB_ENV
           echo Last build tool version is: $BUILD_TOOL_VERSION
 
+      - name: Prepare signed APK directory
+        if: env.ANDROID_SIGNING_KEY != null
+        shell: bash
+        run: |
+          unsigned_apk_output_dir="${ANDROID_UNSIGNED_APK_OUTPUT_DIR}"
+          signed_apk_output_dir="${ANDROID_SIGNED_APK_OUTPUT_DIR}"
+          if [[ "${unsigned_apk_output_dir}" = /* ]]; then
+            unsigned_apk_output_dir_abs="${unsigned_apk_output_dir}"
+          else
+            unsigned_apk_output_dir_abs="${PWD}/${unsigned_apk_output_dir}"
+          fi
+          if [[ "${signed_apk_output_dir}" = /* ]]; then
+            signed_apk_output_dir_abs="${signed_apk_output_dir}"
+          else
+            signed_apk_output_dir_abs="${PWD}/${signed_apk_output_dir}"
+          fi
+          mkdir -p "${signed_apk_output_dir_abs}"
+          cp "${unsigned_apk_output_dir_abs}/rustdesk-${{ env.VERSION }}-universal${{ env.suffix }}.apk" \
+            "${signed_apk_output_dir_abs}/rustdesk-${{ env.VERSION }}-universal${{ env.suffix }}.apk"
+          echo "Signed APK will be written to ${signed_apk_output_dir_abs}/rustdesk-${{ env.VERSION }}-universal${{ env.suffix }}.apk"
+
       - uses: r0adkll/sign-android-release@v1
         name: Sign app APK
         if: env.ANDROID_SIGNING_KEY != null
         id: sign-rustdesk
         with:
-          releaseDirectory: ${{ env.ANDROID_APK_OUTPUT_DIR }}
+          releaseDirectory: ${{ env.ANDROID_SIGNED_APK_OUTPUT_DIR }}
           signingKeyBase64: ${{ secrets.ANDROID_SIGNING_KEY }}
           alias: ${{ secrets.ANDROID_ALIAS }}
           keyStorePassword: ${{ secrets.ANDROID_KEY_STORE_PASSWORD }}
@@ -1430,12 +1503,42 @@ jobs:
           # env.ANDROID_SIGN_TOOL_VERSION is set by Step "Setup sign tool version variable"
           BUILD_TOOLS_VERSION: ${{ env.ANDROID_SIGN_TOOL_VERSION }}
 
+      - name: Normalize signed APK path
+        if: env.ANDROID_SIGNING_KEY != null
+        shell: bash
+        run: |
+          signed_apk_output_dir="${ANDROID_SIGNED_APK_OUTPUT_DIR}"
+          if [[ "${signed_apk_output_dir}" = /* ]]; then
+            signed_apk_output_dir_abs="${signed_apk_output_dir}"
+          else
+            signed_apk_output_dir_abs="${PWD}/${signed_apk_output_dir}"
+          fi
+          mkdir -p "${signed_apk_output_dir_abs}"
+          signed_src="${{ steps.sign-rustdesk.outputs.signedReleaseFile }}"
+          if [[ "${signed_src}" = /* ]]; then
+            signed_src_abs="${signed_src}"
+          else
+            signed_src_abs="${PWD}/${signed_src}"
+          fi
+          signed_dst_abs="${signed_apk_output_dir_abs}/rustdesk-${{ env.VERSION }}-universal${{ env.suffix }}.apk"
+          if [[ "${signed_src_abs}" != "${signed_dst_abs}" ]]; then
+            cp "${signed_src_abs}" "${signed_dst_abs}"
+          fi
+          echo "Signed APK available at ${signed_dst_abs}"
+
       - name: Upload Artifacts
         if: env.ANDROID_SIGNING_KEY != null && env.UPLOAD_ARTIFACT == 'true'
         uses: actions/upload-artifact@master
         with:
-          name: rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.apk
-          path: ${{steps.sign-rustdesk.outputs.signedReleaseFile}}
+          name: rustdesk-${{ env.VERSION }}-universal${{ env.suffix }}.apk
+          path: ${{ env.ANDROID_SIGNED_APK_OUTPUT_DIR }}/rustdesk-${{ env.VERSION }}-universal${{ env.suffix }}.apk
+
+      - name: Upload unsigned APK artifact
+        if: env.ANDROID_SIGNING_KEY == null && env.UPLOAD_ARTIFACT == 'true'
+        uses: actions/upload-artifact@master
+        with:
+          name: rustdesk-${{ env.VERSION }}-universal${{ env.suffix }}.apk
+          path: ${{ env.ANDROID_UNSIGNED_APK_OUTPUT_DIR }}/rustdesk-${{ env.VERSION }}-universal${{ env.suffix }}.apk
 
       - name: Publish signed apk package
         if: env.ANDROID_SIGNING_KEY != null && env.UPLOAD_ARTIFACT == 'true'
@@ -1444,7 +1547,7 @@ jobs:
           prerelease: true
           tag_name: ${{ env.TAG_NAME }}
           files: |
-            ${{steps.sign-rustdesk.outputs.signedReleaseFile}}
+            ${{ env.ANDROID_SIGNED_APK_OUTPUT_DIR }}/rustdesk-${{ env.VERSION }}-universal${{ env.suffix }}.apk
 
       - name: Publish unsigned apk package
         if: env.ANDROID_SIGNING_KEY == null && env.UPLOAD_ARTIFACT == 'true'
@@ -1453,7 +1556,7 @@ jobs:
           prerelease: true
           tag_name: ${{ env.TAG_NAME }}
           files: |
-            ${{ env.ANDROID_APK_OUTPUT_DIR }}/rustdesk-${{ env.VERSION }}-universal${{ env.suffix }}.apk
+            ${{ env.ANDROID_UNSIGNED_APK_OUTPUT_DIR }}/rustdesk-${{ env.VERSION }}-universal${{ env.suffix }}.apk
 
   build-rustdesk-linux:
     needs: [generate-bridge]
