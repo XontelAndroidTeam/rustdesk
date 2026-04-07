@@ -205,6 +205,36 @@ Recommended examples:
 This was an important compromise because storage is tight, but performance and
 reliability still matter.
 
+### Docker Should Share The Repo With A Bind Mount, Not A Per-Run Copy
+
+When we returned to the Docker path, we explicitly compared two runtime models:
+
+- copy the repo from host to container on each run
+- bind mount the repo into the container and persist caches separately
+
+The local-development decision was:
+
+- use a bind mount for the repo workspace
+- persist build caches outside the repo
+- avoid per-run repo copies unless we specifically need snapshot-style isolation
+
+Why:
+
+- the Android build depends on the full repo root, so a partial copy or
+  Flutter-only mount is the wrong model
+- a bind mount keeps host edits and container actions in the same working tree
+- copying every run would add startup time and would require an explicit
+  strategy for syncing generated files back to the host
+- the runtime wrapper already supports a better split: shared workspace plus
+  separately mounted caches
+
+The practical caveat is performance:
+
+- bind mounting from a Windows-backed filesystem can still be slower than using
+  a Linux-native filesystem
+- if that becomes a problem, moving the repo to WSL ext4 is a better first
+  response than adding copy-on-start complexity
+
 ### The Real Storage Cost Is Mostly Not Ubuntu Itself
 
 We also discussed whether a very lightweight Ubuntu variant was needed.
