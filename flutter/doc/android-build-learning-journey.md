@@ -11,12 +11,13 @@ It is not the primary build procedure. The procedural documents are:
 - `doc/android-debug-build-plan-wsl.md`
 - `doc/android-toolchain-bootstrap-plan-wsl.md`
 - `doc/android-docker-build-environment.md`
+- `doc/android-github-workflow-with-act.md`
 
 This file captures the reasoning behind those documents so future work can
 start from the decisions already made.
 
-The Docker environment note documents a different approach from the WSL-first
-path captured here.
+The Docker environment note and the `act` workflow note document different
+approaches from the WSL-first path captured here.
 
 ## Starting Point
 
