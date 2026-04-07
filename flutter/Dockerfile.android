@@ -174,10 +174,16 @@ COPY flutter/docker/android-entrypoint.sh /usr/local/bin/android-entrypoint.sh
 COPY flutter/docker/android-build.sh /usr/local/bin/rustdesk-android-build
 
 RUN echo "START: Configure container user and permissions" && \
-    groupadd --gid "${USER_GID}" "${USERNAME}" && \
-    useradd --uid "${USER_UID}" --gid "${USER_GID}" --create-home --shell /bin/bash "${USERNAME}" && \
-    mkdir -p /workspace "${PUB_CACHE}" "${GRADLE_USER_HOME}" && \
-    chown -R "${USERNAME}:${USERNAME}" \
+    if ! getent group "${USER_GID}" >/dev/null; then \
+      groupadd --gid "${USER_GID}" "${USERNAME}"; \
+    fi && \
+    if id -u "${USERNAME}" >/dev/null 2>&1; then \
+      usermod --non-unique --uid "${USER_UID}" --gid "${USER_GID}" --shell /bin/bash "${USERNAME}"; \
+    else \
+      useradd --non-unique --uid "${USER_UID}" --gid "${USER_GID}" --create-home --shell /bin/bash "${USERNAME}"; \
+    fi && \
+    mkdir -p /home/"${USERNAME}" /workspace "${PUB_CACHE}" "${GRADLE_USER_HOME}" && \
+    chown -R "${USER_UID}:${USER_GID}" \
       /home/"${USERNAME}" \
       /workspace \
       "${FLUTTER_HOME}" \
