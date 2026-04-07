@@ -81,6 +81,7 @@ HOST_PACKAGES=(
   libgtk-3-dev
   libpam0g-dev
   libpulse-dev
+  libssl-dev
   libunwind-dev
   libva-dev
   libxcb-randr0-dev

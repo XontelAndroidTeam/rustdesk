@@ -221,6 +221,25 @@ Fix:
 - add `make` to `flutter/setup_android_wsl_toolchain.sh` so the host bootstrap
   and Docker package set stay aligned
 
+### Rust Android build failed because host OpenSSL headers were missing
+
+The Rust cross-build later failed in `openssl-sys`, but the error showed
+`$HOST = x86_64-unknown-linux-gnu`, which means the missing dependency was on
+the Linux host side of the build graph rather than in the Android NDK.
+
+Root cause:
+
+- `build.rs` depends on `hbb_common`
+- `hbb_common` pulls in `tokio-native-tls`
+- `tokio-native-tls` uses `openssl-sys`
+- the image and WSL bootstrap package list did not include `libssl-dev`, so
+  `pkg-config` could not find `openssl.pc`
+
+Fix:
+
+- add `libssl-dev` to `flutter/Dockerfile.android`
+- add `libssl-dev` to `flutter/setup_android_wsl_toolchain.sh`
+
 ## Build Command
 
 ```bash
