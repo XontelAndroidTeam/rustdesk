@@ -19,6 +19,19 @@ start from the decisions already made.
 The Docker environment note and the `act` workflow note document different
 approaches from the WSL-first path captured here.
 
+## Simple Timeline
+
+- 2026-03-30: started with a WSL-first investigation, created the bootstrap and
+  debug-build planning documents, and recorded the first `install-flutter`
+  failures and fixes
+- 2026-04-01 to 2026-04-02: explored running
+  `.github/workflows/flutter-build.yml` locally with `act`, fixed the local
+  artifact, runner-mapping, and token issues, and then reached a real Flutter
+  package compatibility failure
+- 2026-04-07: revisited the Docker path, fixed the stale Flutter patch gate and
+  the container UID/GID collision in `flutter/Dockerfile.android`, built the
+  `rustdesk-android-env` image successfully, and documented that approach
+
 ## Starting Point
 
 The original goal was simple:
