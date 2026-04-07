@@ -87,7 +87,7 @@ RUN echo "START: Install main Flutter SDK" && \
     curl -fsSL "https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz" -o /tmp/flutter.tar.xz && \
     tar -xJf /tmp/flutter.tar.xz -C /opt && \
     rm -f /tmp/flutter.tar.xz && \
-    if [[ "${FLUTTER_VERSION}" == "3.24.5" ]]; then \
+    if [[ "${FLUTTER_VERSION}" == "3.24.4" ]]; then \
       dropdown_menu_path="${FLUTTER_HOME}/packages/flutter/lib/src/material/dropdown_menu.dart" && \
       if git apply --check --reverse --directory="${FLUTTER_HOME}" /tmp/flutter_dropdown_menu.patch >/dev/null 2>&1; then \
         echo "Flutter patch already present in ${FLUTTER_HOME}"; \
