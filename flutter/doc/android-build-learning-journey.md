@@ -10,9 +10,13 @@ It is not the primary build procedure. The procedural documents are:
 - `doc/flutter-build-guide.md`
 - `doc/android-debug-build-plan-wsl.md`
 - `doc/android-toolchain-bootstrap-plan-wsl.md`
+- `doc/android-docker-build-environment.md`
 
 This file captures the reasoning behind those documents so future work can
 start from the decisions already made.
+
+The Docker environment note documents a different approach from the WSL-first
+path captured here.
 
 ## Starting Point
 
