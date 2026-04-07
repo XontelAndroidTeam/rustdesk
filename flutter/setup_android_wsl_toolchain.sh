@@ -88,6 +88,7 @@ HOST_PACKAGES=(
   libxcb-xfixes0-dev
   libxdo-dev
   libxfixes-dev
+  make
   llvm-dev
   nasm
   ninja-build

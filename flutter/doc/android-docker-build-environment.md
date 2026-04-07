@@ -209,6 +209,18 @@ Fix:
 - create or update the container user with the requested numeric IDs
 - `chown` by numeric `UID:GID` instead of assuming a matching group name
 
+### FFmpeg Android dependency build failed with exit 127
+
+The `ffmpeg:arm64-android` overlay port builds through a shell script that
+invokes plain `make`, but the Docker image and WSL bootstrap package list did
+not include `make`.
+
+Fix:
+
+- add `make` to `flutter/Dockerfile.android`
+- add `make` to `flutter/setup_android_wsl_toolchain.sh` so the host bootstrap
+  and Docker package set stay aligned
+
 ## Build Command
 
 ```bash
