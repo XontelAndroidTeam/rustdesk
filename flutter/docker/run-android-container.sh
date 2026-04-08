@@ -14,6 +14,10 @@ PUB_CACHE_HOST_PATH="${PUB_CACHE_HOST_PATH:-${CACHE_ROOT}/pub-cache}"
 CARGO_REGISTRY_HOST_PATH="${CARGO_REGISTRY_HOST_PATH:-${CACHE_ROOT}/cargo-registry}"
 CARGO_GIT_HOST_PATH="${CARGO_GIT_HOST_PATH:-${CACHE_ROOT}/cargo-git}"
 TARGET_HOST_PATH="${TARGET_HOST_PATH:-${CACHE_ROOT}/target}"
+VCPKG_INSTALLED_HOST_PATH="${VCPKG_INSTALLED_HOST_PATH:-${CACHE_ROOT}/vcpkg-installed}"
+VCPKG_DOWNLOADS_HOST_PATH="${VCPKG_DOWNLOADS_HOST_PATH:-${CACHE_ROOT}/vcpkg-downloads}"
+VCPKG_BUILDTREES_HOST_PATH="${VCPKG_BUILDTREES_HOST_PATH:-${CACHE_ROOT}/vcpkg-buildtrees}"
+VCPKG_PACKAGES_HOST_PATH="${VCPKG_PACKAGES_HOST_PATH:-${CACHE_ROOT}/vcpkg-packages}"
 AUTO_PREPARE="${AUTO_PREPARE:-0}"
 
 declare -a EXTRA_BINDS=()
@@ -122,6 +126,10 @@ prepare_paths() {
   CARGO_REGISTRY_HOST_PATH="$(abs_path "$CARGO_REGISTRY_HOST_PATH")"
   CARGO_GIT_HOST_PATH="$(abs_path "$CARGO_GIT_HOST_PATH")"
   TARGET_HOST_PATH="$(abs_path "$TARGET_HOST_PATH")"
+  VCPKG_INSTALLED_HOST_PATH="$(abs_path "$VCPKG_INSTALLED_HOST_PATH")"
+  VCPKG_DOWNLOADS_HOST_PATH="$(abs_path "$VCPKG_DOWNLOADS_HOST_PATH")"
+  VCPKG_BUILDTREES_HOST_PATH="$(abs_path "$VCPKG_BUILDTREES_HOST_PATH")"
+  VCPKG_PACKAGES_HOST_PATH="$(abs_path "$VCPKG_PACKAGES_HOST_PATH")"
 
   ensure_dir "$WORKSPACE_HOST_PATH"
   ensure_dir "$OUTPUT_HOST_PATH"
@@ -130,6 +138,10 @@ prepare_paths() {
   ensure_dir "$CARGO_REGISTRY_HOST_PATH"
   ensure_dir "$CARGO_GIT_HOST_PATH"
   ensure_dir "$TARGET_HOST_PATH"
+  ensure_dir "$VCPKG_INSTALLED_HOST_PATH"
+  ensure_dir "$VCPKG_DOWNLOADS_HOST_PATH"
+  ensure_dir "$VCPKG_BUILDTREES_HOST_PATH"
+  ensure_dir "$VCPKG_PACKAGES_HOST_PATH"
 }
 
 run_container() {
@@ -146,6 +158,10 @@ run_container() {
     -v "${CARGO_REGISTRY_HOST_PATH}:/opt/.cargo/registry"
     -v "${CARGO_GIT_HOST_PATH}:/opt/.cargo/git"
     -v "${TARGET_HOST_PATH}:/workspace/target"
+    -v "${VCPKG_INSTALLED_HOST_PATH}:/opt/vcpkg/installed"
+    -v "${VCPKG_DOWNLOADS_HOST_PATH}:/opt/vcpkg/downloads"
+    -v "${VCPKG_BUILDTREES_HOST_PATH}:/opt/vcpkg/buildtrees"
+    -v "${VCPKG_PACKAGES_HOST_PATH}:/opt/vcpkg/packages"
   )
 
   if [[ "${AUTO_PREPARE}" == "1" || "${AUTO_PREPARE}" == "true" ]]; then
@@ -171,6 +187,10 @@ run_container() {
   log "Cargo registry cache: ${CARGO_REGISTRY_HOST_PATH} -> /opt/.cargo/registry"
   log "Cargo git cache: ${CARGO_GIT_HOST_PATH} -> /opt/.cargo/git"
   log "Target cache: ${TARGET_HOST_PATH} -> /workspace/target"
+  log "vcpkg installed cache: ${VCPKG_INSTALLED_HOST_PATH} -> /opt/vcpkg/installed"
+  log "vcpkg downloads cache: ${VCPKG_DOWNLOADS_HOST_PATH} -> /opt/vcpkg/downloads"
+  log "vcpkg buildtrees cache: ${VCPKG_BUILDTREES_HOST_PATH} -> /opt/vcpkg/buildtrees"
+  log "vcpkg packages cache: ${VCPKG_PACKAGES_HOST_PATH} -> /opt/vcpkg/packages"
   for bind_spec in "${EXTRA_BINDS[@]}"; do
     log "Extra bind: ${bind_spec}"
   done

@@ -67,6 +67,8 @@ Current implementation in `flutter/docker/run-android-container.sh`:
 - APK output is mounted separately to `/workspace/unsigned-apk`
 - Gradle, Pub, Cargo registry, Cargo git, and `/workspace/target` are each
   mounted from persistent host cache paths
+- `vcpkg` `installed/`, `downloads/`, `buildtrees/`, and `packages/` are also
+  mounted from persistent host cache paths
 - extra bind mounts can be added with repeated `--bind HOST:CONTAINER`
 
 This means the current runner already uses shared host/container state through
@@ -91,6 +93,9 @@ Practical rule:
 - change `flutter/docker/android-entrypoint.sh`,
   `flutter/docker/android-build.sh`, or the Dockerfile itself: rebuild the
   `rustdesk-android-env` image first
+- rerun the same Android build without source changes: the mounted `vcpkg`
+  cache directories should now allow reuse of previously built native
+  dependencies instead of rebuilding them from scratch each container run
 
 Important caveat:
 
@@ -124,8 +129,8 @@ End-to-end flow:
 1. `run-android-container.sh` resolves host paths, creates missing output and
    cache directories, and runs `docker run`.
 2. It bind mounts the repo root to `/workspace`, mounts
-   `/workspace/unsigned-apk`, and mounts persistent Gradle, Pub, Cargo, and
-   `target/` caches.
+   `/workspace/unsigned-apk`, and mounts persistent Gradle, Pub, Cargo,
+   `target/`, and `vcpkg` cache directories.
 3. The image starts `android-entrypoint.sh` because `flutter/Dockerfile.android`
    sets it as the container `ENTRYPOINT`.
 4. The entrypoint creates Android runtime files, marks the bind-mounted repo as
@@ -156,6 +161,9 @@ Practical implication:
 - because `/workspace` is a bind mount, generated bridge files, JNI libraries,
   `local.properties`, and APK outputs are written back into the host-visible
   workspace or mounted output directory
+- because `vcpkg` `installed/`, `downloads/`, `buildtrees/`, and `packages/`
+  are also mounted from the host, repeated Android dependency installation
+  should be able to reuse prior container runs much more effectively
 
 ## Typical Steps
 
