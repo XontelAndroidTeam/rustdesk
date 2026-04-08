@@ -28,6 +28,7 @@ typedef HandleEvent = Future<void> Function(Map<String, dynamic> evt);
 /// FFI wrapper around the native Rust core.
 /// Hides the platform differences.
 class PlatformFFI {
+  static const _bundledServerConfigAsset = 'assets/server_config.json';
   String _dir = '';
   // _homeDir is only needed for Android and IOS.
   String _homeDir = '';
@@ -216,10 +217,50 @@ class PlatformFFI {
         appDir: _dir,
         customClientConfig: '',
       );
+
+      await _applyBundledServerConfigIfNeeded();
     } catch (e) {
       debugPrintStack(label: 'initialize failed: $e');
     }
     version = await getVersion();
+  }
+
+  Future<void> _applyBundledServerConfigIfNeeded() async {
+    const optionKeys = [
+      'custom-rendezvous-server',
+      'relay-server',
+      'api-server',
+      'key',
+    ];
+
+    if (optionKeys.any((key) => _ffiBind.mainGetOptionSync(key: key).trim().isNotEmpty)) {
+      return;
+    }
+
+    try {
+      final bundledConfig =
+          ServerConfig.decode(await rootBundle.loadString(_bundledServerConfigAsset));
+
+      String removeEndSlash(String input) {
+        if (input.endsWith('/')) {
+          return input.substring(0, input.length - 1);
+        }
+        return input;
+      }
+
+      await _ffiBind.mainSetOption(
+          key: 'custom-rendezvous-server',
+          value: removeEndSlash(bundledConfig.idServer.trim()));
+      await _ffiBind.mainSetOption(
+          key: 'relay-server',
+          value: removeEndSlash(bundledConfig.relayServer.trim()));
+      await _ffiBind.mainSetOption(
+          key: 'api-server',
+          value: removeEndSlash(bundledConfig.apiServer.trim()));
+      await _ffiBind.mainSetOption(key: 'key', value: bundledConfig.key.trim());
+    } catch (e) {
+      debugPrint('Failed to load bundled server config: $e');
+    }
   }
 
   Future<bool> tryHandle(Map<String, dynamic> evt) async {
