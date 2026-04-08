@@ -31,6 +31,11 @@ approaches from the WSL-first path captured here.
 - 2026-04-07: revisited the Docker path, fixed the stale Flutter patch gate and
   the container UID/GID collision in `flutter/Dockerfile.android`, built the
   `rustdesk-android-env` image successfully, and documented that approach
+- 2026-04-08: implemented bundled `ServerConfig` defaults through a Flutter
+  asset and Dart startup hook, confirmed that ordinary source changes under the
+  bind-mounted workspace do not require rebuilding the Docker image, and fixed a
+  local integration mistake where `native_model.dart` referenced `bind` instead
+  of its in-scope `_ffiBind`
 
 ## Starting Point
 
@@ -256,6 +261,47 @@ Practical consequence:
 - changing ordinary repo source files does not require rebuilding the image
 - changing those Docker helper scripts does require rebuilding the image before
   a new container will pick up the updated logic
+
+### Feature Work Reuses The Existing Docker Image
+
+The bundled `ServerConfig` feature was a good concrete check of the Docker
+workflow assumptions.
+
+What changed:
+
+- `flutter/lib/models/native_model.dart`
+- `flutter/assets/server_config.json`
+
+What did not change:
+
+- `flutter/Dockerfile.android`
+- `flutter/docker/android-entrypoint.sh`
+- `flutter/docker/android-build.sh`
+
+Conclusion:
+
+- rerunning the container is enough for this kind of feature work
+- rebuilding the image is unnecessary unless the Dockerfile or baked helper
+  scripts changed
+
+This reinforced the practical rule already captured in the Docker environment
+note: source edits under the bind-mounted repo are live to the container, but
+scripts copied into `/usr/local/bin` at image build time are not.
+
+### The Right Bridge Handle Depends On File Scope
+
+The first draft of the bundled `ServerConfig` startup hook used `bind` inside
+`flutter/lib/models/native_model.dart`.
+
+What we confirmed:
+
+- `bind` is exposed by `flutter/lib/models/platform_model.dart`
+- `native_model.dart` already owns the bridge instance as `_ffiBind`
+- calling `_ffiBind` directly is the correct local choice and avoids adding an
+  unnecessary dependency on `platform_model.dart`
+
+This was a small but useful reminder that not every commonly used helper is
+globally in scope across model files.
 
 This became especially visible when a script change appeared correct in the
 working tree, but the container still behaved as if the old code was running.
