@@ -261,6 +261,48 @@ This became especially visible when a script change appeared correct in the
 working tree, but the container still behaved as if the old code was running.
 The missing step was rebuilding `rustdesk-android-env`.
 
+### Persisting vcpkg Runtime State Was The Biggest Local Rerun Win
+
+We also measured the no-source-change Docker rerun path instead of guessing
+where the time was going.
+
+Measured result before the fix:
+
+- total rerun time was about `622.0s`
+- `Install Android native dependencies for arm64-v8a` alone took about
+  `417.6s`
+- `Build Flutter APK for arm64-v8a (release)` took about `196.9s`
+- Rust library rebuild time was only about `3.0s`
+
+What that told us:
+
+- the dominant rerun bottleneck was not the Rust build
+- the biggest wasted work was Android native dependency handling through
+  `vcpkg`
+- the Docker runner was already persisting Gradle, Pub, Cargo, and `target/`,
+  but it was not persisting `vcpkg` runtime state
+
+Fix applied:
+
+- persist `vcpkg` `installed/`, `downloads/`, `buildtrees/`, and `packages/`
+  from the host cache root into `/opt/vcpkg/...` inside the container
+
+Measured result after the fix:
+
+- total rerun time dropped to about `170.3s`
+- `Install Android native dependencies for arm64-v8a` dropped to about `1.5s`
+- `Build Flutter APK for arm64-v8a (release)` became the main remaining rerun
+  cost at about `163.6s`
+
+Learning:
+
+- preserving the right cache is more valuable than adding speculative skip
+  logic too early
+- for this Docker path, `vcpkg` runtime state was the highest-value cache to
+  persist
+- once that was fixed, the next optimization target became Flutter/Gradle APK
+  packaging rather than native dependency installation
+
 ### The Real Storage Cost Is Mostly Not Ubuntu Itself
 
 We also discussed whether a very lightweight Ubuntu variant was needed.

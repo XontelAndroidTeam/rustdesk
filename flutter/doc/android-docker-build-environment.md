@@ -165,6 +165,18 @@ Practical implication:
   are also mounted from the host, repeated Android dependency installation
   should be able to reuse prior container runs much more effectively
 
+Measured rerun result after enabling persistent `vcpkg` cache mounts:
+
+- before the cache-mount change, a no-source-change rerun took about `622.0s`
+- `Install Android native dependencies for arm64-v8a` alone took about `417.6s`
+- after the cache-mount change, the same rerun dropped to about `170.3s`
+- `Install Android native dependencies for arm64-v8a` dropped to about `1.5s`
+- after that fix, the main remaining rerun cost was
+  `Build Flutter APK for arm64-v8a (release)` at about `163.6s`
+
+This confirmed that the main rerun bottleneck was discarded `vcpkg` runtime
+state, not the Rust build itself.
+
 ## Typical Steps
 
 Recommended local workflow:
