@@ -39,9 +39,71 @@ DEFAULT_BUILD_MODE="${FLUTTER_BUILD_MODE:-release}"
 OUTPUT_DIR_NAME="${ANDROID_UNSIGNED_APK_OUTPUT_DIR:-unsigned-apk}"
 FORCE_BRIDGE_GEN="${FORCE_BRIDGE_GEN:-0}"
 
+TIMING_SUMMARY_ENABLED=0
+TIMING_SUMMARY_PRINTED=0
+BUILD_TOTAL_START_MS=""
+declare -a TIMING_LABELS=()
+declare -a TIMING_DURATIONS_MS=()
+
 # Shared logging and error helpers for build steps.
 log() {
   printf '\n==> %s\n' "$*" >&2
+}
+
+now_ms() {
+  date +%s%3N
+}
+
+record_timing() {
+  local label="$1"
+  local duration_ms="$2"
+
+  TIMING_LABELS+=("${label}")
+  TIMING_DURATIONS_MS+=("${duration_ms}")
+}
+
+format_duration_ms() {
+  local duration_ms="$1"
+  printf '%d.%01ds' "$((duration_ms / 1000))" "$(((duration_ms % 1000) / 100))"
+}
+
+print_timing_summary() {
+  local total_ms="0"
+  local i
+
+  if [[ "${TIMING_SUMMARY_ENABLED}" != "1" || "${TIMING_SUMMARY_PRINTED}" == "1" ]]; then
+    return
+  fi
+
+  TIMING_SUMMARY_PRINTED=1
+
+  if [[ -n "${BUILD_TOTAL_START_MS}" ]]; then
+    total_ms="$(( $(now_ms) - BUILD_TOTAL_START_MS ))"
+  fi
+
+  printf '\n==> Build timing summary\n' >&2
+  printf '%-32s %s\n' "TOTAL" "$(format_duration_ms "${total_ms}")" >&2
+
+  for ((i = 0; i < ${#TIMING_LABELS[@]}; i++)); do
+    printf '%-32s %s\n' "${TIMING_LABELS[$i]}" "$(format_duration_ms "${TIMING_DURATIONS_MS[$i]}")" >&2
+  done
+}
+
+time_block() {
+  local label="$1"
+  local start_ms end_ms status
+  shift
+
+  start_ms="$(now_ms)"
+  if "$@"; then
+    status=0
+  else
+    status=$?
+  fi
+  end_ms="$(now_ms)"
+
+  record_timing "${label}" "$((end_ms - start_ms))"
+  return "${status}"
 }
 
 step_echo() {
@@ -50,14 +112,20 @@ step_echo() {
 
 run_step() {
   local label="$1"
+  local start_ms end_ms
   shift
 
   # Emit consistent START/SUCCESS/FAILED messages around each significant step.
+  start_ms="$(now_ms)"
   step_echo "START" "${label}"
   if "$@"; then
+    end_ms="$(now_ms)"
+    record_timing "${label}" "$((end_ms - start_ms))"
     step_echo "SUCCESS" "${label}"
   else
     local status=$?
+    end_ms="$(now_ms)"
+    record_timing "${label}" "$((end_ms - start_ms))"
     step_echo "FAILED" "${label}"
     return "${status}"
   fi
@@ -455,10 +523,13 @@ main() {
       ;;
     build-apk)
       # Parse optional CLI args, run shared preparation, then execute the full build pipeline.
+      TIMING_SUMMARY_ENABLED=1
+      BUILD_TOTAL_START_MS="$(now_ms)"
+      trap print_timing_summary EXIT
       abi="${2:-${DEFAULT_ABI}}"
       build_mode="${3:-${DEFAULT_BUILD_MODE}}"
-      prepare_workspace
-      build_apk "${abi}" "${build_mode}"
+      time_block "prepare_workspace" prepare_workspace
+      time_block "build_apk" build_apk "${abi}" "${build_mode}"
       ;;
     ""|-h|--help|help)
       # No subcommand means usage, not an implicit build.
