@@ -42,6 +42,7 @@ FORCE_BRIDGE_GEN="${FORCE_BRIDGE_GEN:-0}"
 TIMING_SUMMARY_ENABLED=0
 TIMING_SUMMARY_PRINTED=0
 BUILD_TOTAL_START_MS=""
+TIMING_LOG_PATH=""
 declare -a TIMING_LABELS=()
 declare -a TIMING_DURATIONS_MS=()
 
@@ -67,6 +68,15 @@ format_duration_ms() {
   printf '%d.%01ds' "$((duration_ms / 1000))" "$(((duration_ms % 1000) / 100))"
 }
 
+timing_log_line() {
+  local line="$1"
+
+  printf '%s\n' "${line}" >&2
+  if [[ -n "${TIMING_LOG_PATH}" ]]; then
+    printf '%s\n' "${line}" >> "${TIMING_LOG_PATH}"
+  fi
+}
+
 print_timing_summary() {
   local total_ms="0"
   local i
@@ -81,11 +91,17 @@ print_timing_summary() {
     total_ms="$(( $(now_ms) - BUILD_TOTAL_START_MS ))"
   fi
 
-  printf '\n==> Build timing summary\n' >&2
-  printf '%-32s %s\n' "TOTAL" "$(format_duration_ms "${total_ms}")" >&2
+  if [[ -n "${TIMING_LOG_PATH}" ]]; then
+    mkdir -p "$(dirname "${TIMING_LOG_PATH}")"
+    printf '\n' >> "${TIMING_LOG_PATH}"
+  fi
+
+  timing_log_line ""
+  timing_log_line "==> Build timing summary"
+  timing_log_line "$(printf '%-32s %s' "TOTAL" "$(format_duration_ms "${total_ms}")")"
 
   for ((i = 0; i < ${#TIMING_LABELS[@]}; i++)); do
-    printf '%-32s %s\n' "${TIMING_LABELS[$i]}" "$(format_duration_ms "${TIMING_DURATIONS_MS[$i]}")" >&2
+    timing_log_line "$(printf '%-32s %s' "${TIMING_LABELS[$i]}" "$(format_duration_ms "${TIMING_DURATIONS_MS[$i]}")")"
   done
 }
 
@@ -525,6 +541,7 @@ main() {
       # Parse optional CLI args, run shared preparation, then execute the full build pipeline.
       TIMING_SUMMARY_ENABLED=1
       BUILD_TOTAL_START_MS="$(now_ms)"
+      TIMING_LOG_PATH="${REPO_ROOT}/${OUTPUT_DIR_NAME}/build-timing.log"
       trap print_timing_summary EXIT
       abi="${2:-${DEFAULT_ABI}}"
       build_mode="${3:-${DEFAULT_BUILD_MODE}}"
