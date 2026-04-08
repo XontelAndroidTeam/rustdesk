@@ -72,6 +72,26 @@ Current implementation in `flutter/docker/run-android-container.sh`:
 This means the current runner already uses shared host/container state through
 bind mounts. It does not copy the repo into the container on startup.
 
+Important implementation detail:
+
+- the repo is bind mounted to `/workspace`, so source files read from the repo
+  root are live from the host checkout
+- however, `flutter/docker/android-entrypoint.sh` and
+  `flutter/docker/android-build.sh` are also copied into the image at build
+  time as `/usr/local/bin/android-entrypoint.sh` and
+  `/usr/local/bin/rustdesk-android-build`
+- this means changing normal repo source files does not require rebuilding the
+  image, but changing those two Docker helper scripts does require rebuilding
+  the image before new containers will use the updated behavior
+
+Practical rule:
+
+- change Rust, Flutter, Gradle, or other repo inputs under the bind-mounted
+  workspace: rerun the container, no image rebuild needed
+- change `flutter/docker/android-entrypoint.sh`,
+  `flutter/docker/android-build.sh`, or the Dockerfile itself: rebuild the
+  `rustdesk-android-env` image first
+
 Important caveat:
 
 - bind mounting a repo from a Windows-host path can be slower than bind mounting
@@ -121,6 +141,15 @@ End-to-end flow:
    and Flutter packages, builds Android dependencies and Rust artifacts, runs
    `flutter build apk`, and copies the final APK into
    `/workspace/unsigned-apk`.
+
+Script-location implication:
+
+- steps 3 through 7 execute the copies baked into the image, not the
+  bind-mounted script files under `/workspace/flutter/docker/`
+- if you update those helper scripts in the repo and only rerun the container,
+  the container will still run the older copies from the previously built image
+- this is easy to miss because the rest of the repo is live through the bind
+  mount
 
 Practical implication:
 
@@ -186,6 +215,16 @@ Useful variants:
 ./flutter/docker/run-android-container.sh \
   --workspace /path/to/rustdesk-fork \
   -- rustdesk-android-build build-apk arm64-v8a release
+```
+
+When script changes do require an image rebuild:
+
+```bash
+docker build \
+  -f flutter/Dockerfile.android \
+  --build-arg USER_UID="$(id -u)" \
+  --build-arg USER_GID="$(id -g)" \
+  -t rustdesk-android-env .
 ```
 
 ## Issues Encountered

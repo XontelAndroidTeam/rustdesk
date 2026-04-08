@@ -235,6 +235,32 @@ The practical caveat is performance:
 - if that becomes a problem, moving the repo to WSL ext4 is a better first
   response than adding copy-on-start complexity
 
+### Bind-Mounted Workspace Does Not Mean Every Helper Script Is Live
+
+One easy mistake in the Docker flow is to assume that changing any file under
+the repo will immediately affect the next container run because `/workspace` is
+bind mounted.
+
+What we confirmed:
+
+- the repo contents are live under `/workspace`
+- but `flutter/docker/android-entrypoint.sh` and
+  `flutter/docker/android-build.sh` are copied into the image as
+  `/usr/local/bin/android-entrypoint.sh` and
+  `/usr/local/bin/rustdesk-android-build`
+- those copied scripts are what the container actually executes at startup and
+  during the Android build flow
+
+Practical consequence:
+
+- changing ordinary repo source files does not require rebuilding the image
+- changing those Docker helper scripts does require rebuilding the image before
+  a new container will pick up the updated logic
+
+This became especially visible when a script change appeared correct in the
+working tree, but the container still behaved as if the old code was running.
+The missing step was rebuilding `rustdesk-android-env`.
+
 ### The Real Storage Cost Is Mostly Not Ubuntu Itself
 
 We also discussed whether a very lightweight Ubuntu variant was needed.
