@@ -55,6 +55,18 @@ applied.
 If the asset is missing or malformed, the app logs the error and continues
 without a user-facing message.
 
+If the asset omits `api` or `key`, `ServerConfig.decode()` maps those missing
+fields to empty strings.
+
+That means:
+
+- `host` and `relay` still get applied
+- omitted `api` is written as an empty string
+- omitted `key` is written as an empty string
+
+This is an implementation detail of the current bootstrap logic, which writes
+the decoded fields individually after the all-empty check passes.
+
 ## User Experience Impact
 
 Expected behavior:
@@ -83,6 +95,14 @@ Explicitly excluded from this feature:
 
 `local-ip-addr` is runtime-derived from the device network environment and
 should not be shipped as a bundled default.
+
+Important distinction for optional fields:
+
+- `api` is structurally optional and usually operationally safe to leave blank,
+  because the app can derive the API URL from `custom-rendezvous-server`
+- `key` is structurally optional in the JSON shape, but not operationally safe
+  to leave blank for a custom server, because the app falls back to RustDesk's
+  built-in public key
 
 ## Docker Build Impact
 

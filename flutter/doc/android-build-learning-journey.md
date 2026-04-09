@@ -303,6 +303,35 @@ What we confirmed:
 This was a small but useful reminder that not every commonly used helper is
 globally in scope across model files.
 
+### Missing Asset Fields Still Partially Apply
+
+We also clarified an important detail of the bundled `ServerConfig` behavior.
+
+What the startup hook does:
+
+- it checks whether the current saved `custom-rendezvous-server`,
+  `relay-server`, `api-server`, and `key` values are all empty
+- if they are, it decodes the bundled JSON into `ServerConfig`
+- it then writes each of the four options individually
+
+Practical consequence:
+
+- if the asset contains `host` and `relay` but omits `api` and `key`, the
+  startup hook still writes `host` and `relay`
+- omitted `api` and `key` decode to empty strings and are also written as empty
+  values
+
+What that means for behavior:
+
+- blank `api` is usually acceptable because the app can derive the API server
+  from `custom-rendezvous-server`
+- blank `key` is usually not acceptable for a custom server because the app
+  falls back to RustDesk's built-in public key instead of the custom server key
+
+This distinction matters when deciding which fields are truly optional in the
+bundled JSON. Structurally, `api` and `key` can be omitted. Operationally, only
+`api` is safely optional for the custom-server case discussed in this session.
+
 This became especially visible when a script change appeared correct in the
 working tree, but the container still behaved as if the old code was running.
 The missing step was rebuilding `rustdesk-android-env`.
