@@ -36,6 +36,11 @@ approaches from the WSL-first path captured here.
   bind-mounted workspace do not require rebuilding the Docker image, and fixed a
   local integration mistake where `native_model.dart` referenced `bind` instead
   of its in-scope `_ffiBind`
+- 2026-04-12: confirmed that a locally built release-signed APK can still hit
+  Android 13+ restricted-settings warnings for RustDesk input control because
+  the app is sideloaded and requests Accessibility access; recorded the
+  per-app `Allow restricted settings` workaround and clarified that this is not
+  the same issue as media projection permission
 
 ## Starting Point
 
@@ -395,6 +400,65 @@ So the recommended path stayed:
 - standard Ubuntu 24.04 LTS
 - lean package installation
 - careful cache placement and reuse
+
+## Android Device Behavior Lessons
+
+### A Release-Signed Local APK Can Still Be Blocked By Restricted Settings
+
+We hit an important device-side behavior while testing a locally built signed
+APK on Android.
+
+Reproduction path:
+
+1. open the RustDesk Android app
+2. go to share screen
+3. switch input control
+4. observe the popup titled "How to get Android input permission"
+5. tap "Open system setting"
+6. open RustDesk under Accessibility and hit the Android security warning
+
+What we first suspected:
+
+- the APK signing setup might still be wrong even though the app was built with
+  a release keystore
+
+What we confirmed instead:
+
+- this is expected Android 13+ behavior for sensitive permissions such as
+  Accessibility
+- RustDesk input control depends on an Accessibility service, so the app can be
+  blocked even when the APK is release-signed
+- using our own signing key does not make the APK trusted for this policy
+- the deciding factor is that the app was installed through a sideloaded flow,
+  not whether the APK is unsigned or release-signed
+
+Device-side workaround:
+
+- open `Settings -> Apps -> RustDesk -> More (3 dots) -> Allow restricted settings`
+- then return to `Settings -> Accessibility -> RustDesk`
+- enable the Accessibility service after the per-app override is enabled
+
+Important distinction:
+
+- this Accessibility restriction is separate from media projection permission
+- an `appops` workaround for `PROJECT_MEDIA` can help with repeated screen-share
+  prompts, but it does not bypass the Accessibility restricted-settings check
+
+Learning:
+
+- when a signed local APK still triggers the Android Accessibility warning, do
+  not jump straight to "the keystore or signing step is broken"
+- first check whether the app is being treated as a sideloaded install that
+  requires `Allow restricted settings`
+- document device-policy behavior alongside build behavior, because successful
+  signing does not guarantee friction-free permission flows on test devices
+
+References:
+
+- Google Android Help: restricted settings
+  <https://support.google.com/android/answer/12623953?hl=en>
+- RustDesk discussion: Android 13 input control restriction
+  <https://github.com/rustdesk/rustdesk/discussions/6241>
 
 ## Internet And Reproducibility Lessons
 
