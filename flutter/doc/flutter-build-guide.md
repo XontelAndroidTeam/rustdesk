@@ -240,6 +240,9 @@ If you want the separate one-time WSL toolchain/bootstrap plan, see
 If you want the reasoning and decision trail that led to those plans, see
 `doc/android-build-learning-journey.md`.
 
+If you want the device-side testing flow after the APK is installed on an
+Android tablet, see `doc/android-tablet-testing-guide.md`.
+
 ### 1. Build Native Android Dependencies With vcpkg
 
 Run this from the repository root:
