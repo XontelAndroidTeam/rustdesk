@@ -147,6 +147,17 @@ End-to-end flow:
    `flutter build apk`, and copies the final APK into
    `/workspace/unsigned-apk`.
 
+Signing implication:
+
+- the current helper intentionally rewrites `signingConfigs.release` to
+  `signingConfigs.debug` during the build
+- that is why this flow talks about `unsigned-apk/` even when the build mode is
+  `release`
+- mounting a keystore and creating `flutter/android/key.properties` is not
+  enough by itself if you still use `rustdesk-android-build build-apk ...`
+- for a true release-signed Docker build, run the manual build steps inside the
+  container without that debug-signing rewrite
+
 Script-location implication:
 
 - steps 3 through 7 execute the copies baked into the image, not the
@@ -212,6 +223,14 @@ Expected output pattern:
 ```text
 unsigned-apk/rustdesk-<version>-arm64-v8a.apk
 ```
+
+If you need a real release-signed APK instead of the helper's unsigned or
+debug-signed output:
+
+- mount the keystore into the container with `--bind`
+- create `flutter/android/key.properties` with container-visible paths
+- open a shell with `./flutter/docker/run-android-container.sh --auto-prepare -- bash`
+- run the manual `flutter build apk --release ...` flow inside the container
 
 Useful variants:
 

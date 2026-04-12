@@ -51,6 +51,15 @@ Expected output:
 signed-apk/rustdesk-1.4.6-aarch64.apk
 ```
 
+Signing note:
+
+- the workflow does not rely on local Gradle `key.properties`
+- it first builds an APK after temporarily switching to `signingConfigs.debug`
+- it then signs the copied artifact with `r0adkll/sign-android-release` if the
+  Android signing secrets are present
+- with `act`, reproducing the `signed-apk/` output therefore requires the same
+  signing secrets the workflow expects, not just a local keystore file
+
 ## Issues We Encountered
 
 ### Artifact upload failed

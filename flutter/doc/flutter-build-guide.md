@@ -130,6 +130,35 @@ flutter.sdk=<flutter-sdk-path>
 
 The current checkout already has a local file with those keys, which confirms they are required for local builds.
 
+### 5. Understand Android Signing Inputs
+
+Android release signing in this repo is configured in
+`flutter/android/app/build.gradle`.
+
+What that Gradle file does:
+
+- loads `key.properties` from the Android root at `flutter/android/key.properties`
+- defines `signingConfigs.release`
+- points the `release` build type at `signingConfigs.release`
+
+Expected `key.properties` keys:
+
+```properties
+storeFile=/absolute/path/to/release.jks
+storePassword=YOUR_STORE_PASSWORD
+keyAlias=YOUR_KEY_ALIAS
+keyPassword=YOUR_KEY_PASSWORD
+```
+
+Important details:
+
+- the keystore itself is not stored in the repo
+- `key.properties` tells Gradle where the keystore lives
+- for container builds, prefer an absolute container path such as
+  `/workspace/flutter/android/storefile` over `~`
+- if you keep the keystore at `flutter/android/storefile`, the safe relative
+  value from the app module is `../storefile`
+
 ## Fetch Flutter Packages
 
 From `flutter/`:
@@ -290,6 +319,66 @@ cd flutter
 MODE=release bash build_android.sh
 ```
 
+### 7. How Signing Happens
+
+There are three distinct signing paths to keep straight:
+
+#### Local Gradle release signing
+
+If you run:
+
+```bash
+cd flutter
+flutter build apk --release --target-platform android-arm64,android-arm
+```
+
+then Gradle uses the `release` signing config from
+`flutter/android/app/build.gradle`.
+
+That means:
+
+- `flutter/android/key.properties` must exist
+- the keystore path in `storeFile` must be valid on the machine running the build
+- the output APK is signed during the normal Gradle packaging step
+
+#### Docker helper output in this checkout
+
+The checked-in Docker helper script does not currently use your release
+keystore by default.
+
+`flutter/docker/android-build.sh` temporarily rewrites:
+
+- `signingConfigs.release` -> `signingConfigs.debug`
+
+and then writes the result into `unsigned-apk/`.
+
+Practical consequence:
+
+- `rustdesk-android-build build-apk ... release` produces a Docker-built APK
+- but it is not a true release-signed APK with your own keystore
+
+If you need real release signing in Docker:
+
+- mount the keystore into the container
+- create `flutter/android/key.properties` with container-visible paths
+- run the manual build sequence inside the container instead of relying on the
+  helper's debug-signing swap
+
+#### GitHub Actions and `act`
+
+The CI workflow uses a separate post-build signing path.
+
+What it does:
+
+- first builds the APK after temporarily switching to `signingConfigs.debug`
+- writes that artifact into `unsigned-apk/`
+- if signing secrets are present, copies the APK into `signed-apk/`
+- runs `r0adkll/sign-android-release` with a base64-encoded keystore and the
+  alias/password secrets
+
+This means the local Gradle signing path and the CI signing path are not the
+same implementation, even though both can produce a signed APK artifact.
+
 ## Caveats That Matter
 
 - `flutter build apk` does not build `librustdesk.so` for you
@@ -313,25 +402,36 @@ You need:
 
 ## Docker In This Checkout
 
-The checked-in Docker path in this checkout is the root-level Linux builder:
+This checkout currently contains two Docker-related paths:
 
-- `Dockerfile`
-- `entrypoint.sh`
+- the root-level Linux builder:
+  - `Dockerfile`
+  - `entrypoint.sh`
+- the Android-specific local build environment:
+  - `flutter/Dockerfile.android`
+  - `flutter/docker/run-android-container.sh`
+  - `flutter/docker/android-entrypoint.sh`
+  - `flutter/docker/android-build.sh`
 
-That path is documented in the root `README.md` and works like this:
+The root-level Docker path is documented in the repo `README.md` and works like
+this:
 
 - `docker build -t rustdesk-builder .` builds the image from the root `Dockerfile`
 - `docker run ... rustdesk-builder` starts the container
 - the container entrypoint runs `entrypoint.sh`
 - `entrypoint.sh` prepares target directories, copies `libsciter-gtk.so`, and runs `cargo build`
 
-What Docker is not doing here:
+The Android-specific Docker path is documented in:
 
-- the current GitHub workflows in `.github/workflows/` do not use `docker build`, `docker run`, or a workflow `container:` block against this Dockerfile
-- the Dockerfile is a local build convenience path, not the CI execution environment
+- `doc/android-docker-build-environment.md`
 
-One repo caveat:
+Important caveats:
 
-- some notes under `flutter/doc/` mention `flutter/Dockerfile.android` and `flutter/docker/android-build.sh`
-- those files are not present in this checkout
-- treat those references as design notes or stale documentation, not as runnable paths in the repo
+- the current GitHub workflows in `.github/workflows/` do not run either local
+  Docker path directly
+- the Android Docker helper currently builds output under `unsigned-apk/` by
+  temporarily switching from `signingConfigs.release` to
+  `signingConfigs.debug`
+- if you need a true release-signed APK in Docker, follow the signing notes in
+  this guide and the Android Docker environment note instead of assuming the
+  helper uses your keystore automatically
