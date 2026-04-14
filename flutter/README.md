@@ -1,16 +1,10 @@
-# flutter_hbb
+# Flutter Workspace
 
-A new Flutter project.
+This directory contains the Flutter client for the Xontel fork of RustDesk.
 
-## Getting Started
+Do not treat this folder as a standalone Flutter starter project. The Flutter
+app depends on the parent Rust workspace, generated bridge files, Android native
+artifacts, and repo-root build inputs.
 
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples and guidance on mobile development, and a full API reference.
+Start with [doc/README.md](doc/README.md) for the current documentation entry
+point.

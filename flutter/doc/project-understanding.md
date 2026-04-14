@@ -2,7 +2,9 @@
 
 ## What This Project Is
 
-This checkout is a RustDesk fork. The repository root is the real product workspace, and `flutter/` is the Flutter UI layer that sits on top of a larger Rust codebase.
+This checkout is the Xontel fork of RustDesk. The repository root is the real
+product workspace, and `flutter/` is the Flutter UI layer that sits on top of a
+larger Rust codebase.
 
 Inside this folder, the Flutter package is `flutter_hbb` and `pubspec.yaml` describes it as "Your Remote Desktop Software". The app targets desktop, mobile, and some web-specific code paths.
 

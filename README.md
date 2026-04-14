@@ -40,7 +40,7 @@ RustDesk welcomes contribution from everyone. See [CONTRIBUTING.md](docs/CONTRIB
 
 Desktop versions use Flutter or Sciter (deprecated) for GUI, this tutorial is for Sciter only, since it is easier and more friendly to start. Check out our [CI](https://github.com/rustdesk/rustdesk/blob/master/.github/workflows/flutter-build.yml) for building Flutter version.
 
-For the current relationship between GitHub workflows, helper scripts, and Docker entrypoints in this checkout, see [flutter/doc/flutter-build-guide.md](flutter/doc/flutter-build-guide.md).
+For the current Flutter-side build path in this Xontel fork of RustDesk, start with [flutter/doc/README.md](flutter/doc/README.md).
 
 Please download Sciter dynamic library yourself.
 

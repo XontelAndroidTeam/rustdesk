@@ -1,5 +1,12 @@
 # Flutter Build Guide
 
+This guide is the detailed build reference for the Xontel fork of RustDesk.
+
+If you are choosing a build path or looking for the shortest route through the
+docs, start with [README.md](README.md). The primary local Android path in this
+checkout is the Debian Docker workflow summarized there and expanded in
+[android-docker-build-environment.md](android-docker-build-environment.md).
+
 ## Short Answer
 
 Yes, this project needs dependencies before building. It is not a pure Flutter-only app.
@@ -353,7 +360,14 @@ keystore by default.
 
 - `signingConfigs.release` -> `signingConfigs.debug`
 
-and then writes the result into `unsigned-apk/`.
+Build output flow for `rustdesk-android-build build-apk arm64-v8a release`:
+
+- Flutter/Gradle first writes
+  `flutter/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk`
+- the helper then copies that APK into the stable output directory
+  `unsigned-apk/rustdesk-<version>-arm64-v8a.apk`
+- with the default Docker launcher mount layout, that final copied file is
+  visible on the host under `<repo-root>/unsigned-apk/`
 
 Practical consequence:
 

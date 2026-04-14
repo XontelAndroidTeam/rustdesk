@@ -2,12 +2,16 @@
 
 ## Purpose
 
-This note records why we built the `rustdesk-android-env` image and what we
-had to fix to make it usable.
+This note records why we built the `rustdesk-android-env` image for the
+Xontel fork of RustDesk and what we had to fix to make it usable.
 
-This is not the source of truth for Android build logic. The source of truth
-remains the repo workflows and the WSL-first bootstrap/build documents under
-`flutter/doc/`.
+If you need the fastest entry point for the current local Android workflow,
+start with [README.md](README.md). This note is supporting context for the
+Docker path, not the first document to read.
+
+The day-to-day local build path in this checkout is the Debian Docker flow
+documented in [README.md](README.md) and
+[flutter-build-guide.md](flutter-build-guide.md).
 
 ## Why We Needed This
 
