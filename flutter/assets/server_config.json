@@ -1,5 +1,5 @@
 {
-  "host": "54.171.41.3:21116",
-  "relay": "54.171.41.3:21117",
+  "host": "rust.xontel.com:21116",
+  "relay": "rust.xontel.com:21117",
   "key": "Lsuq0K50eXJ5PyE5jbnHNlU4067xdhPkmbkmLhxqiBY="
 }
