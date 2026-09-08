@@ -37,6 +37,9 @@ FRB_CODEGEN="${CARGO_HOME}/bin/flutter_rust_bridge_codegen"
 DEFAULT_ABI="${ANDROID_ABI:-arm64-v8a}"
 DEFAULT_BUILD_MODE="${FLUTTER_BUILD_MODE:-release}"
 OUTPUT_DIR_NAME="${ANDROID_UNSIGNED_APK_OUTPUT_DIR:-unsigned-apk}"
+SIGNED_OUTPUT_DIR_NAME="${ANDROID_SIGNED_APK_OUTPUT_DIR:-signed-apk}"
+# Gradle always reads the signing config from this path; the keystore location comes from inside it.
+KEY_PROPERTIES_REL_PATH="flutter/android/key.properties"
 FORCE_BRIDGE_GEN="${FORCE_BRIDGE_GEN:-0}"
 
 TIMING_SUMMARY_ENABLED=0
@@ -169,6 +172,11 @@ Supported ABIs:
   armeabi-v7a
   x86_64
   x86
+
+Signing:
+  debug/profile builds use the Android debug key
+  release builds use the keystore named by storeFile in
+  flutter/android/key.properties (by convention flutter/android/key.jks)
 EOF
 }
 
@@ -408,6 +416,30 @@ prepare_jni_libs() {
   cp "${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/${NDK_LIB_DIR}/libc++_shared.so" "${jni_path}/"
 }
 
+keystore_path_from_key_properties() {
+  local store_file
+
+  # key.properties owns the keystore location, so read it back instead of assuming a path.
+  # Tolerate spaces around "=" and a CRLF file, both of which Gradle accepts.
+  store_file="$(sed -n 's/^[[:space:]]*storeFile[[:space:]]*=[[:space:]]*//p' "${REPO_ROOT}/${KEY_PROPERTIES_REL_PATH}" | head -n 1 | tr -d '\r')"
+  [[ -n "${store_file}" ]] || return 1
+
+  # Gradle resolves a relative storeFile from the app module, not from the repo root.
+  case "${store_file}" in
+    /*) printf '%s\n' "${store_file}" ;;
+    *) printf '%s\n' "${REPO_ROOT}/flutter/android/app/${store_file}" ;;
+  esac
+}
+
+output_dir_for_mode() {
+  # Release builds carry a real signature, so they land in the signed directory.
+  if [[ "${1}" == "release" ]]; then
+    printf '%s\n' "${REPO_ROOT}/${SIGNED_OUTPUT_DIR_NAME}"
+  else
+    printf '%s\n' "${REPO_ROOT}/${OUTPUT_DIR_NAME}"
+  fi
+}
+
 version_name_from_pubspec() {
   # The final APK filename uses only the version name, not the +build number.
   sed -n 's/^version:[[:space:]]*//p' "${REPO_ROOT}/flutter/pubspec.yaml" | head -n 1 | cut -d'+' -f1
@@ -434,41 +466,32 @@ build_rust_library_step() {
 
 flutter_build_apk_step() {
   (
-    # Keep temporary Gradle edits scoped to this subshell and always restore them afterward.
+    # Keep the temporary Gradle edit scoped to this subshell and always restore it afterward.
     set -euo pipefail
 
-    local app_gradle_backup=""
     local gradle_props_backup=""
 
     cleanup() {
-      # Restore the original Android Gradle files after the build, whether it succeeded or failed.
-      if [[ -n "${app_gradle_backup}" && -f "${app_gradle_backup}" ]]; then
-        cp "${app_gradle_backup}" "${REPO_ROOT}/flutter/android/app/build.gradle"
-      fi
+      # Restore the original gradle.properties after the build, whether it succeeded or failed.
       if [[ -n "${gradle_props_backup}" && -f "${gradle_props_backup}" ]]; then
         cp "${gradle_props_backup}" "${REPO_ROOT}/flutter/android/gradle.properties"
-      fi
-      if [[ -n "${app_gradle_backup}" ]]; then
-        rm -f "${app_gradle_backup}"
       fi
       if [[ -n "${gradle_props_backup}" ]]; then
         rm -f "${gradle_props_backup}"
       fi
     }
 
-    # Snapshot the Gradle files before the temporary in-place edits below.
-    app_gradle_backup="$(mktemp)"
+    # Snapshot gradle.properties before the temporary in-place edit below.
     gradle_props_backup="$(mktemp)"
-    cp "${REPO_ROOT}/flutter/android/app/build.gradle" "${app_gradle_backup}"
     cp "${REPO_ROOT}/flutter/android/gradle.properties" "${gradle_props_backup}"
     trap cleanup EXIT
 
     # Increase the Gradle heap to reduce OOM risk in containerized builds.
     sed -i 's/org.gradle.jvmargs=-Xmx1024M/org.gradle.jvmargs=-Xmx2g/' "${REPO_ROOT}/flutter/android/gradle.properties"
-    # Build unsigned output by reusing debug signing instead of expecting release signing config.
-    sed -i 's/signingConfigs.release/signingConfigs.debug/' "${REPO_ROOT}/flutter/android/app/build.gradle"
 
-    # Run the Flutter APK build from flutter/ with the desired ABI target.
+    # Run the Flutter APK build from flutter/ with the desired ABI target. Signing follows the
+    # build mode: debug and profile use the Android debug key, release uses signingConfigs.release,
+    # which reads flutter/android/key.properties.
     cd "${REPO_ROOT}/flutter"
     export PATH="${JAVA_HOME}/bin:${PATH}"
     "${MAIN_FLUTTER}" build apk "--${BUILD_MODE}" --target-platform "${FLUTTER_TARGET}" --split-per-abi
@@ -478,7 +501,7 @@ flutter_build_apk_step() {
 collect_apk_output_step() {
   local output_dir version_name output_apk source_apk
 
-  output_dir="${REPO_ROOT}/${OUTPUT_DIR_NAME}"
+  output_dir="$(output_dir_for_mode "${BUILD_MODE}")"
   version_name="$(version_name_from_pubspec)"
   source_apk="${REPO_ROOT}/flutter/build/app/outputs/flutter-apk/${APK_NAME}"
   output_apk="${output_dir}/rustdesk-${version_name}-${abi}.apk"
@@ -522,7 +545,7 @@ prepare_workspace() {
 # Dispatch the requested subcommand.
 main() {
   local command="${1:-}"
-  local abi build_mode
+  local abi build_mode keystore_path
 
   # Subcommands expose the same phases used by CI and by the Docker entrypoint.
   case "${command}" in
@@ -539,12 +562,25 @@ main() {
       ;;
     build-apk)
       # Parse optional CLI args, run shared preparation, then execute the full build pipeline.
-      TIMING_SUMMARY_ENABLED=1
-      BUILD_TOTAL_START_MS="$(now_ms)"
-      TIMING_LOG_PATH="${REPO_ROOT}/${OUTPUT_DIR_NAME}/build-timing.log"
-      trap print_timing_summary EXIT
       abi="${2:-${DEFAULT_ABI}}"
       build_mode="${3:-${DEFAULT_BUILD_MODE}}"
+      # Signing and the output directory both branch on the mode, so reject anything unexpected.
+      case "${build_mode}" in
+        debug|profile|release) ;;
+        *) fail "Unsupported build mode: ${build_mode} (expected debug, profile, or release)" ;;
+      esac
+      # Release builds sign for real, so check the signing inputs before any build work starts.
+      if [[ "${build_mode}" == "release" ]]; then
+        [[ -f "${REPO_ROOT}/${KEY_PROPERTIES_REL_PATH}" ]] || fail "Release signing needs ${KEY_PROPERTIES_REL_PATH} (storeFile, storePassword, keyAlias, keyPassword)"
+        keystore_path="$(keystore_path_from_key_properties)" || fail "${KEY_PROPERTIES_REL_PATH} has no storeFile entry naming the keystore"
+        [[ -f "${keystore_path}" ]] || fail "Keystore named by storeFile in ${KEY_PROPERTIES_REL_PATH} not found: ${keystore_path}"
+      fi
+      TIMING_SUMMARY_ENABLED=1
+      BUILD_TOTAL_START_MS="$(now_ms)"
+      # timing_log_line appends without creating the directory, so make it exist first.
+      TIMING_LOG_PATH="$(output_dir_for_mode "${build_mode}")/build-timing.log"
+      mkdir -p "$(dirname "${TIMING_LOG_PATH}")"
+      trap print_timing_summary EXIT
       time_block "prepare_workspace" prepare_workspace
       time_block "build_apk" build_apk "${abi}" "${build_mode}"
       ;;

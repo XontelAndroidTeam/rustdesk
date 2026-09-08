@@ -53,6 +53,8 @@ lib/generated_bridge.dart
 examples/**/target/
 # ===
 vcpkg_installed
+# Android APK output from flutter/docker/android-build.sh
+/signed-apk/
 flutter/lib/generated_plugin_registrant.dart
 libsciter.dylib
 flutter/web/
