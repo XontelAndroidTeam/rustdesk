@@ -19,6 +19,12 @@ The primary local Android path documented here is the Debian Docker workflow.
 - Detailed build reference: [flutter-build-guide.md](flutter-build-guide.md)
 - Product and repo structure: [project-understanding.md](project-understanding.md)
 
+## Machine Requirements
+
+- At least 60 GB of free disk space for the Docker image, the Rust, vcpkg,
+  and Gradle caches, and the build outputs.
+- At least 8 GB of RAM.
+
 ## Docker Build Path On Debian
 
 ### Build The Image
