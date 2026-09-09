@@ -149,18 +149,22 @@ End-to-end flow:
    `Cargo.toml` and `flutter/`, validates the toolchain, ensures bridge files
    and Flutter packages, builds Android dependencies and Rust artifacts, runs
    `flutter build apk`, and copies the final APK into
-   `/workspace/unsigned-apk`.
+   `/workspace/signed-apk` for a `release` build or `/workspace/unsigned-apk`
+   for `debug` and `profile`.
 
 Signing implication:
 
-- the current helper intentionally rewrites `signingConfigs.release` to
-  `signingConfigs.debug` during the build
-- that is why this flow talks about `unsigned-apk/` even when the build mode is
-  `release`
-- mounting a keystore and creating `flutter/android/key.properties` is not
-  enough by itself if you still use `rustdesk-android-build build-apk ...`
-- for a true release-signed Docker build, run the manual build steps inside the
-  container without that debug-signing rewrite
+- the helper does not touch `signingConfigs` at all; the Flutter build mode
+  decides the key
+- a `release` build signs with `flutter/android/key.jks` through
+  `flutter/android/key.properties`, and the APK is copied to `signed-apk/`
+- `debug` and `profile` builds use the Android debug key and are copied to
+  `unsigned-apk/`
+- both release signing inputs sit inside the bind-mounted repo, so no extra
+  keystore mount is needed
+- a `release` build fails up front, before any build work starts, if
+  `key.properties` is missing, has no `storeFile` entry, or names a keystore
+  that does not exist
 
 Script-location implication:
 
@@ -213,28 +217,32 @@ docker build --no-cache \
 ./flutter/docker/run-android-container.sh -- rustdesk-android-build prepare
 ```
 
-3. Build the unsigned APK for a target ABI.
+3. Build the APK for a target ABI.
 
 ```bash
 ./flutter/docker/run-android-container.sh -- \
   rustdesk-android-build build-apk arm64-v8a release
 ```
 
-4. Find the output on the host under `unsigned-apk/`.
+4. Find the output on the host under `signed-apk/`.
 
 Expected output pattern:
 
 ```text
-unsigned-apk/rustdesk-<version>-arm64-v8a.apk
+signed-apk/rustdesk-<version>-arm64-v8a.apk
 ```
 
-If you need a real release-signed APK instead of the helper's unsigned or
-debug-signed output:
+A `debug` or `profile` build writes to `unsigned-apk/` under the same filename
+pattern.
 
-- mount the keystore into the container with `--bind`
-- create `flutter/android/key.properties` with container-visible paths
-- open a shell with `./flutter/docker/run-android-container.sh --auto-prepare -- bash`
-- run the manual `flutter build apk --release ...` flow inside the container
+The `release` build above is signed with your own keystore, so it requires:
+
+- a keystore at `flutter/android/key.jks`
+- `flutter/android/key.properties` with `storeFile=../key.jks` plus the
+  passwords and alias
+
+Both paths are inside the bind-mounted repo, so nothing extra needs mounting.
+Build with `debug` instead of `release` to skip the keystore entirely.
 
 Useful variants:
 

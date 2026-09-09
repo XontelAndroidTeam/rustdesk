@@ -148,10 +148,11 @@ What that Gradle file does:
 - defines `signingConfigs.release`
 - points the `release` build type at `signingConfigs.release`
 
-Expected `key.properties` keys:
+Expected `key.properties` keys, copied from
+`flutter/android/key.properties.example`:
 
 ```properties
-storeFile=/absolute/path/to/release.jks
+storeFile=../key.jks
 storePassword=YOUR_STORE_PASSWORD
 keyAlias=YOUR_KEY_ALIAS
 keyPassword=YOUR_KEY_PASSWORD
@@ -159,12 +160,15 @@ keyPassword=YOUR_KEY_PASSWORD
 
 Important details:
 
-- the keystore itself is not stored in the repo
-- `key.properties` tells Gradle where the keystore lives
-- for container builds, prefer an absolute container path such as
-  `/workspace/flutter/android/storefile` over `~`
-- if you keep the keystore at `flutter/android/storefile`, the safe relative
-  value from the app module is `../storefile`
+- the keystore itself is not stored in the repo, and both files are gitignored
+- the keystore belongs at the fixed path `flutter/android/key.jks`
+- `storeFile` is resolved by Gradle from the app module
+  (`flutter/android/app`), so the relative `../key.jks` resolves to that fixed
+  path and works unchanged on the host and inside the container
+- prefer that relative value over an absolute one: an absolute host path breaks
+  in Docker, and an absolute `/workspace/...` path breaks on the host
+- only the `release` build type consults this config, so `debug` and `profile`
+  builds need neither file
 
 ## Fetch Flutter Packages
 
@@ -331,55 +335,52 @@ MODE=release bash build_android.sh
 
 ### 7. How Signing Happens
 
-There are three distinct signing paths to keep straight:
+The build mode decides the key. There are two signing implementations to keep
+straight: Gradle's own, used by every local and Docker build, and a separate
+post-build step used only by CI.
 
-#### Local Gradle release signing
+#### Gradle signing, local and in Docker
 
-If you run:
+Whether you run:
 
 ```bash
 cd flutter
 flutter build apk --release --target-platform android-arm64,android-arm
 ```
 
-then Gradle uses the `release` signing config from
-`flutter/android/app/build.gradle`.
+or:
 
-That means:
+```bash
+./flutter/docker/run-android-container.sh --auto-prepare -- \
+  rustdesk-android-build build-apk arm64-v8a release
+```
 
-- `flutter/android/key.properties` must exist
-- the keystore path in `storeFile` must be valid on the machine running the build
-- the output APK is signed during the normal Gradle packaging step
+Gradle uses the `release` signing config from `flutter/android/app/build.gradle`.
+The Docker helper no longer rewrites that config, so both paths behave the same.
 
-#### Docker helper output in this checkout
+That means for a `release` build:
 
-The checked-in Docker helper script does not currently use your release
-keystore by default.
+- `flutter/android/key.properties` must exist, and the keystore its `storeFile`
+  entry names must exist too (by convention `flutter/android/key.jks`)
+- the APK is signed during the normal Gradle packaging step
+- the Docker helper reads `storeFile` back from `key.properties` and aborts before
+  any build work if the config or the keystore it names is missing, so
+  `key.properties` stays the single source of truth for where the key lives
 
-`flutter/docker/android-build.sh` temporarily rewrites:
-
-- `signingConfigs.release` -> `signingConfigs.debug`
+For `debug` and `profile` builds nothing is required: no build type other than
+`release` has a `signingConfig`, so AGP's default debug keystore is used.
 
 Build output flow for `rustdesk-android-build build-apk arm64-v8a release`:
 
 - Flutter/Gradle first writes
   `flutter/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk`
 - the helper then copies that APK into the stable output directory
-  `unsigned-apk/rustdesk-<version>-arm64-v8a.apk`
-- with the default Docker launcher mount layout, that final copied file is
-  visible on the host under `<repo-root>/unsigned-apk/`
-
-Practical consequence:
-
-- `rustdesk-android-build build-apk ... release` produces a Docker-built APK
-- but it is not a true release-signed APK with your own keystore
-
-If you need real release signing in Docker:
-
-- mount the keystore into the container
-- create `flutter/android/key.properties` with container-visible paths
-- run the manual build sequence inside the container instead of relying on the
-  helper's debug-signing swap
+  `signed-apk/rustdesk-<version>-arm64-v8a.apk`
+- `debug` and `profile` builds are copied to `unsigned-apk/` instead
+- `signed-apk/` is visible on the host through the whole-repo `/workspace` mount;
+  note that `run-android-container.sh --output PATH` repoints only the
+  `unsigned-apk` mount, so passing it a path outside the repo splits the two
+  output directories
 
 #### GitHub Actions and `act`
 
@@ -446,9 +447,8 @@ Important caveats:
 
 - the current GitHub workflows in `.github/workflows/` do not run either local
   Docker path directly
-- the Android Docker helper currently builds output under `unsigned-apk/` by
-  temporarily switching from `signingConfigs.release` to
-  `signingConfigs.debug`
-- if you need a true release-signed APK in Docker, follow the signing notes in
-  this guide and the Android Docker environment note instead of assuming the
-  helper uses your keystore automatically
+- the Android Docker helper signs according to the build mode: `release` output
+  goes to `signed-apk/` using `flutter/android/key.jks`, while `debug` and
+  `profile` output goes to `unsigned-apk/` with the Android debug key
+- `flutter/docker/android-build.sh` is copied into the image at build time, so
+  edits to it take effect only after the image is rebuilt

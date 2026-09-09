@@ -1,0 +1,6 @@
+# Copy this file to key.properties (gitignored) and fill in the three secrets.
+# storeFile is resolved from flutter/android/app, so ../key.jks means flutter/android/key.jks.
+storeFile=../key.jks
+storePassword=
+keyAlias=
+keyPassword=
